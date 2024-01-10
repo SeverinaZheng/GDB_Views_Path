@@ -138,6 +138,7 @@ public class QueryParser extends ViewBaseListener {
     enum retType{
         DEFAULT,
         PATH,
+        EDGE,
         PATHNODES,
         NODE
     }
@@ -556,7 +557,10 @@ public class QueryParser extends ViewBaseListener {
             if(varLabels.containsKey(ctx.attribute().getText())) {
                 if (!returnValExpr.equals("")) returnValExpr += ",";
                 returnValExpr += ctx.attribute().getText();
-                returnType = retType.NODE;
+                if(relSymbols.contains(ctx.attribute().getText()))
+                	returnType = retType.EDGE;
+                else
+                	returnType = retType.NODE;
             }
             else{ //if its not a node or relationship, its gotta be the path
                 returnValExpr = ctx.attribute().getText();
@@ -580,7 +584,8 @@ public class QueryParser extends ViewBaseListener {
 
         //Comparing returnexpr and the path (if it exists).
 
-        if(isViewUse || cg) return;
+        //if(isViewUse || cg) return;
+    	if(cg) return;
 
         //System.out.println("Query context is " + ctx.getText());
         // TODO: No reason to keep this line here, because returnContext is never used
@@ -848,7 +853,11 @@ public class QueryParser extends ViewBaseListener {
 
             if(ctx.getText().contains("IN") && !ctx.getText().contains("AND") && !ctx.getText().contains("OR")) {
                 String viewNodeName = ctx.NAME(0).getText(); //not necessarily node. can be path symbol too
-                String viewUsedName = ctx.NAME(1).getText();
+                String viewUsedName;
+                if(ctx.getText().contains("."))
+                	viewUsedName = ctx.NAME(1).getText() + "." + ctx.NAME(2).getText();
+                else
+                	viewUsedName = ctx.NAME(1).getText();
 
                 assert viewsInSystem.contains(viewUsedName);
                 assert usedViews.contains(viewUsedName);
@@ -859,6 +868,9 @@ public class QueryParser extends ViewBaseListener {
                     addWhereClause.put(viewNodeName, new HashSet<String>());
                     addWhereClause.get(viewNodeName).add(viewUsedName);
                 }
+                
+                
+                
             }
 
         }
@@ -1186,6 +1198,10 @@ public class QueryParser extends ViewBaseListener {
 
     public String getViewName(){
         return viewName;
+    }
+    
+    public String getPathName(){
+        return pathName;
     }
 
     public boolean containsWhere(){

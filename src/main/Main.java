@@ -13,7 +13,7 @@ import org.neo4j.graphdb.Transaction;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-
+import java.util.regex.Matcher;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -22,12 +22,12 @@ public class Main {
     //main class used for main.QueryParser.java as the parser.
 
     // Defining parameters
-    protected static Map<String, Set<String>> nodeTable = new ConcurrentHashMap<String, Set<String>>();
-    protected static Map<String, Set<Relationship>> pathTable = new ConcurrentHashMap<>();
-    protected static Map<String, Set<String>> edgeTable = new ConcurrentHashMap<>();
+    protected static Map<String, HashMap<String,Set<String>>> nodeTable = new ConcurrentHashMap<String, HashMap<String,Set<String>>>();
+    protected static Map<String, HashMap<String,Set<Relationship>>> pathTable = new ConcurrentHashMap<>();
+    protected static Map<String, HashMap<String,Set<String>>> edgeTable = new ConcurrentHashMap<>();
 
 
-    protected static Map<String, String> pathRelTable = new ConcurrentHashMap<>();
+    protected static Map<String, HashMap<String,String>> pathRelTable = new ConcurrentHashMap<>();
     protected static Map<String, String> typeTable = new ConcurrentHashMap<>();
 
     // Added for keeping track of the view queries for non-materialized views
@@ -76,6 +76,7 @@ public class Main {
                         System.out.println(cmd);
                         experiment_terminal(cmd);
                         System.out.println("*********************************");
+          
                     }
                 }
             } else if (args.length == 2 && args[0].equals("cold")) {
@@ -207,6 +208,7 @@ public class Main {
                 vql.printOrClauseViews();
             } else if (command.startsWith("printDependencies")) {
                 vql.printDependencies();
+          
             } else if (command.startsWith("printNode")) {
                 System.out.println(nodeTable.toString());
             } else if (command.startsWith("clear")) {
@@ -345,6 +347,7 @@ public class Main {
 
                         rewritten_query =  pathQueryTerm + " AS v1 \n" + 
                             viewQueryTable.get(second_view) + " WITH COLLECT(DISTINCT ID(" + viewReturnVarTable.get(second_view) + ")) AS v2, v1 \n" + 
+          
                             "WITH [node IN v1 WHERE node IN v2] AS commonNodes MATCH (res) WHERE ID(res) IN commonNodes RETURN res";
                         
                         System.out.println(rewritten_query);
@@ -531,6 +534,9 @@ public class Main {
                     long duration = System.currentTimeMillis() - start;
                     System.out.println("Took " + duration + " ms to execute baseline query");
                     System.out.println("Baseline returned " + querySize + " nodes (or edges)");
+                } else if (command.startsWith("original")) {
+                	String query = command.split("original")[1];
+                	connector.executeDirectly(query);
                 } else if (command.startsWith("WITH NON_MATERIALIZED VIEWS")) {
 
                     // Case for Basic Local Use Query Use Queries
@@ -736,8 +742,41 @@ public class Main {
                     } else if (vql.isViewUse()) {
                         long now = System.currentTimeMillis();
 
-                        // Changed temporarily
-                        processUseView(command);
+                        // Break into multiple queries if containing "WITH"
+                        String[] breakByWith = command.split("WITH");
+                        String subCommand = command;
+                        HashMap<String,Set<String>> intermediateResult = new HashMap<>();
+                        if(breakByWith.length >  2) {
+                        	for(int i = 1; i < breakByWith.length-1 ;i++) {
+                        		subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ID(" + breakByWith[i+1].split("MATCH")[0].trim() + ")";
+                        		if(intermediateResult.size() != 0){
+                        			String subBefore = subCommand.split("RETURN")[0];
+                        			String subReturn = subCommand.split("RETURN")[1];
+                        			for(Map.Entry<String,Set<String>> entry : intermediateResult.entrySet()) {
+                        				String paramName = entry.getKey();
+                        				if(subBefore.contains("WHERE"))
+                        					subBefore = subBefore + "AND " + paramName + " IN " + entry.getValue();
+                        				else
+                        					subBefore = subBefore + "WHERE " + paramName + " IN " + entry.getValue();
+                        			}
+                        			subCommand = subBefore + "RETURN " +subReturn;                        			
+                        		}
+                        		intermediateResult = processUseView(subCommand,intermediateResult);
+                        	}  
+                        	subCommand = "MATCH" + breakByWith[breakByWith.length-1].split("MATCH")[1];
+                        	String subBefore = subCommand.split("RETURN")[0];
+                			String subReturn = subCommand.split("RETURN")[1];
+                			for(Map.Entry<String,Set<String>> entry : intermediateResult.entrySet()) {
+                				String paramName = entry.getKey();
+                				if(subBefore.contains("WHERE"))
+                					subBefore = subBefore + "AND " + paramName + " IN " + entry.getValue();
+                				else
+                					subBefore = subBefore + "WHERE " + paramName + " IN " + entry.getValue();
+                			}
+                			subCommand = subBefore + " RETURN " +subReturn;   
+                			intermediateResult = processUseView(subCommand,intermediateResult);
+                        }else
+                        	processUseView(subCommand);
                         //processUseViewMethod2(command);
 
                         long total = System.currentTimeMillis() - now;
@@ -860,16 +899,22 @@ public class Main {
 
                 String[] returnSymbols = returnSymbol.split(",");
 
-                String returnClause = "";
-                for(String retSym : returnSymbols) {
-                    for(String actualRet : returnArray){
-                        if(!returnClause.equals("")) returnClause += ",";
-                        if(retSym.equals(actualRet)) returnClause += "ID(" + retSym + ")";
-                        else returnClause += actualRet;
-                    }
-                }
-                makeMiddlewareView = mainQuery + "RETURN DISTINCT " + returnClause ;
 
+                StringBuilder updateReturnClause = new StringBuilder( returns );
+                for(String retSym : returnSymbols) {
+                    updateReturnClause = new StringBuilder(updateReturnClause.toString().replace(retSym, "ID("+retSym + ")"));
+                }
+                makeMiddlewareView = mainQuery + "RETURN DISTINCT " + updateReturnClause.toString();
+
+                break;
+            }
+            case EDGE:{
+            	String[] returnSymbols = returnSymbol.split(",");
+            	StringBuilder updateReturnClause = new StringBuilder( returns );
+                for(String retSym : returnSymbols) {
+                    updateReturnClause = new StringBuilder(updateReturnClause.toString().replace(retSym, "ID("+retSym + ")"));
+                }
+                makeMiddlewareView = mainQuery + "RETURN DISTINCT " + updateReturnClause.toString();
                 break;
             }
             case PATHNODES:{
@@ -882,7 +927,7 @@ public class Main {
                         " SET pathnode.views = (CASE WHEN \"" +viewname+ "\" IN pathnode.views THEN [] ELSE [\"" + viewname + "\"] END) + pathnode.views)";
 
 
-                makeMiddlewareView = mainQuery + "RETURN " + returnSymbol;
+                makeMiddlewareView = mainQuery + "RETURN " + returns;
 
             }
             case DEFAULT: {
@@ -901,63 +946,107 @@ public class Main {
         // NODE VIEW: Call connector.executeQuery() with makeMiddlewareView as input and update nodeTable with the result nodes
         if(vql.getReturnType() == QueryParser.retType.NODE) {
 
-            Set<String> nodes = connector.executeQuery(makeMiddlewareView);
+            HashMap<String,Set<String>> nodes = connector.executeQuery(makeMiddlewareView);
             nodeTable.put(viewname, nodes);
+            
+            int resultSize = 0;
+        	HashMap<String,Set<String>> nodesInViewDiffName = nodeTable.get(viewname);
+        	for(Set<String> part :nodesInViewDiffName.values()) {
+        		resultSize += part.size();
+        	}
+            System.out.println("There are " + resultSize + " nodes");
 
-            System.out.println("There are " + nodes.size() + " nodes");
+        }
+        if(vql.getReturnType() == QueryParser.retType.EDGE) {
+
+            HashMap<String,Set<String>> edges = connector.executeQuery(makeMiddlewareView);
+            edgeTable.put(viewname, edges);
+            
+            int resultSize = 0;
+        	HashMap<String,Set<String>> nodesInViewDiffName = edgeTable.get(viewname);
+        	for(Set<String> part :nodesInViewDiffName.values()) {
+        		resultSize += part.size();
+        	}
+            System.out.println("There are " + resultSize + " nodes");
 
         }
 
         // PATH VIEW: Call
         if(vql.getReturnType() == QueryParser.retType.PATH ){
             // Getting relationships of the path query
+        	long start = System.currentTimeMillis();
             Object[] processedPath = connector.pathQuery(makeMiddlewareView);
+            long executeEnd = System.currentTimeMillis();
 
             // Mohanna: The following function call is changed by Mohanna to reduce duplicate work in pathQuery() and getPathQueryRelationships()
-            Set<Relationship> relationshipSet = (Set<Relationship>) processedPath[0];
-            String rlist = (String)processedPath[1];
-
-            // Adding the reversed string to the actual string
-            String result = "";
-            String temp = "";
-            StringBuilder resultSB = new StringBuilder();
-
-            for (int i = rlist.length() - 1; i >= 0; i--) {
-
-                String now = String.valueOf(rlist.charAt(i));
-
-                if (!now.equals("-") & !now.equals(" ") ){
-                    temp = rlist.charAt(i) + temp;
-                } else {
-                    resultSB.append(temp);
-                    temp = "";
-                    resultSB.append(rlist.charAt(i));
-                }
+            HashMap<String,Set<Relationship>> allRelationshipSet = ( HashMap<String,Set<Relationship>>) processedPath[0];
+            HashMap<String,String> allrlist = ( HashMap<String,String>)processedPath[1];
+            
+            HashMap<String,String> addingReverse = new HashMap<String,String>();
+            for(Map.Entry<String,String> entry : allrlist.entrySet()){ 
+            	String pathName = entry.getKey();
+	            String rlist = entry.getValue();
+	
+	            // Adding the reversed string to the actual string
+	            String result = "";
+	            String temp = "";
+	            StringBuilder resultSB = new StringBuilder();
+	
+	            for (int i = rlist.length() - 1; i >= 0; i--) {
+	
+	                String now = String.valueOf(rlist.charAt(i));
+	
+	                if (!now.equals("-") & !now.equals(" ") ){
+	                    temp = rlist.charAt(i) + temp;
+	                } else {
+	                    resultSB.append(temp);
+	                    temp = "";
+	                    resultSB.append(rlist.charAt(i));
+	                }
+	            }
+	            resultSB.append(temp);
+	            result = resultSB.toString();
+	
+	            rlist = rlist + " " + result;
+	            addingReverse.put(pathName, rlist);
             }
-            resultSB.append(temp);
-            result = resultSB.toString();
+            System.out.println("after reversing");
+            for (Map.Entry<String,String> entry : addingReverse.entrySet()) {
+            	System.out.println("name:"+entry.getKey());
+            	System.out.println("size:"+entry.getValue().split("\\s+").length);
+            }
+            pathRelTable.put(viewname, addingReverse);
+            
+            pathTable.put(viewname, allRelationshipSet);
 
-            rlist = rlist + " " + result;
-
-            pathRelTable.put(viewname, rlist);
-            pathTable.put(viewname, relationshipSet);
-
-            Set<String> edgeids = new HashSet<String>();
+            HashMap<String,Set<String>> edgeids = new HashMap<String,Set<String>>();
 
             // TODO: Should we be worried about the deprecated version
-            for(Relationship r : relationshipSet){
-                edgeids.add(String.valueOf(r.getId()));
+            for(Map.Entry<String,Set<Relationship>> entry : allRelationshipSet.entrySet()){
+            	String pathName = entry.getKey();
+            	Set<Relationship> relationshipSet = entry.getValue();
+	            for(Relationship r : relationshipSet){
+	            	Set<String> ids;
+	            	if(edgeids.containsKey(pathName))
+	            		ids = edgeids.get(pathName);
+	            	else
+	            		ids = new HashSet<String>();
+	                ids.add(String.valueOf(r.getId()));
+	                edgeids.put(pathName, ids);
+	            }
             }
-
             // Storing edges
             edgeTable.put(viewname, edgeids);
 
-            Set<String> nodeids = connector.getNodeSet();
+            HashMap<String,Set<String>> nodeids = connector.getNodeSet();
 
             System.out.println("There are " + nodeids.size() + " nodes");
 
             // Storing nodes
             nodeTable.put(viewname, nodeids);
+            long processEnd = System.currentTimeMillis();
+            System.out.println("Execution time: " + (executeEnd-start));
+            System.out.println("Process time: " + (processEnd-executeEnd));
         }
 
         // Uncomment for testing purposes
@@ -965,6 +1054,227 @@ public class Main {
         System.out.println("Node Table is + " + nodeTable.toString());
         System.out.println("Edge Table is + " + edgeTable.toString());
         System.out.println("PathNode Table is + " + pathnodeTable.toString()); */
+
+    }
+    
+    public static HashMap<String,Set<String>>  processUseView(String cmd,  HashMap<String,Set<String>> intermediateResult){
+
+        long now = System.currentTimeMillis();
+
+        String fullQuery = "MATCH " + cmd.split("MATCH")[1];
+        //next three data structure are only for path view usage
+        String rlist = "";
+        String[] rlistSplit = null;
+        Map<String, Object> params = new HashMap<>();
+        int edgeNum = 0;
+
+        System.out.println("FullQuery:: "+ fullQuery);
+        System.out.println("cmd:: "+ cmd);
+
+        List<String> edgeidentifiers = vql.relationSymbols();
+        List<String> nodeidentifiers = vql.nodeSymbols();
+        String pathName = vql.getPathName();
+
+        // If view scope is LOCAL
+        if(vql.getViewScope()) {
+
+            System.out.println("Scope:LOCAL");
+            //local, so there are omissions for set membership. if there are omissions then it has to be a single view usage
+
+            String appendedToQuery = "";
+
+            LinkedList<String> usedViews = vql.usedViews();
+
+            if(usedViews.size()==1) {
+
+                //There are definitely omissions
+
+                String singleViewName =  usedViews.getFirst();
+                
+                
+                if(!cmd.contains("*")) {
+                	for (String nodeName : vql.addWhereClause.keySet()) {
+                        for (String viewName : vql.addWhereClause.get(nodeName)) {
+
+                            String target = nodeName + " IN " + viewName;
+                            String replacement = "";
+                            if(viewName.contains(".")) {
+                            	if(vql.nodeSymbols().contains(nodeName))
+                            		replacement = "ID(" + nodeName + ") IN " + nodeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                            	else if (vql.relationSymbols().contains(nodeName))
+                            		replacement = "ID(" + nodeName + ") IN " + edgeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                            	else if (vql.getPathName().equals(nodeName)) {
+                            		//first add name to the relations, if not exists
+                            		  Matcher m = java.util.regex.Pattern.compile("\\[([^\\[\\]]+)]").matcher(fullQuery);
+                            		  int i = 1;
+                            		  String edgeCondition = "";
+                                      while (m.find()) {
+                                      	String content = m.group(1);
+                              	       	if(content.matches("^:.*")) {
+                              	       		while(fullQuery.contains("r"+i)) i++;
+                              	       		fullQuery = fullQuery.replace(content, "r"+i+content);
+                              	       		edgeCondition += "ID(r"+i+") IN $r"+ i + " AND ";
+                              	       		HashMap<String,String> dd = pathRelTable.get(viewName.split("\\.")[0]);
+                              	       		rlist = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
+                              	       	}else
+                              	       		continue;
+                                      }
+                                      replacement = edgeCondition.substring(0,edgeCondition.length()-5);
+                            	}else
+                            		System.out.println("No such item in the view");
+                            		
+                            } else {
+                            	String nodeids = "[";
+                            	HashMap<String,Set<String>> nodesInViewDiffName = nodeTable.get(viewName.split("\\.")[0]);
+                            	for(Set<String> part :nodesInViewDiffName.values()) {
+                            		nodeids += part.toString().substring(1,part.toString().length()-1);
+                            		nodeids += ",";
+                            	}
+                            	nodeids += "]";
+                            	replacement = "ID(" + nodeName + ") IN " + nodeids;
+                            }
+                            fullQuery = fullQuery.replace(target, replacement);
+                            rlistSplit = rlist.split("\\s+");
+
+                        }
+                    }       	
+                }
+            } else if(usedViews.size()>1){
+                //Then there are more than 2 views being used and we treat it as a global, since there are IN clauses
+                for (String nodeName : vql.addWhereClause.keySet()) {
+
+                    for (String viewName : vql.addWhereClause.get(nodeName)) {
+                        String target = nodeName + " IN " + viewName;
+                        String replacement = "ID(" + nodeName + ") IN " + nodeTable.get(viewName);
+
+                        fullQuery = fullQuery.replace(target, replacement);
+
+                    }
+                }
+            }
+        } else {
+            System.out.println("Scope:GLOBAL");
+
+            for (String nodeName : vql.addWhereClause.keySet()) {
+                for (String viewName : vql.addWhereClause.get(nodeName)) {
+                	String target = nodeName + " IN " + viewName;
+                	String replacement = "";
+                	if(!fullQuery.contains(target)) continue;
+                	if(vql.nodeSymbols().contains(nodeName)) {                		
+                        if(viewName.contains(".")) {
+                        	replacement = "ID(" + nodeName + ") IN " + nodeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                        } else {
+                        	String nodeids = "[";
+                        	HashMap<String,Set<String>> nodesInViewDiffName = nodeTable.get(viewName.split("\\.")[0]);
+                        	for(Set<String> part :nodesInViewDiffName.values()) {
+                        		nodeids += part.toString().substring(1,part.toString().length()-1);
+                        		nodeids += ",";
+                        	}
+                        	nodeids += "]";
+                        	replacement = "ID(" + nodeName + ") IN " + nodeids;
+                        }
+                	}else if(vql.relationSymbols().contains(nodeName)) {
+                        if(viewName.contains(".")) {
+                        	replacement = "ID(" + nodeName + ") IN " + edgeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                        } else {
+                        	String edgeids = "[";
+                        	HashMap<String,Set<String>> edgesInViewDiffName = edgeTable.get(viewName.split("\\.")[0]);
+                        	for(Set<String> part :edgesInViewDiffName.values()) {
+                        		edgeids += part.toString().substring(1,part.toString().length()-1);
+                        		edgeids += ",";
+                        	}
+                        	edgeids += "]";
+                        	replacement = "ID(" + nodeName + ") IN " + edgeids;
+                        }               		
+                	}else {
+                		//first add name to the relations, if not exists
+              		  Matcher m = java.util.regex.Pattern.compile("\\[([^\\[\\]]+)]").matcher(fullQuery);
+              		  int i = 1;
+              		  String edgeCondition = "";
+                        while (m.find()) {
+                        	String content = m.group(1);
+                	       	if(content.matches("^:.*")) {
+                	       		while(fullQuery.contains("r"+i)) i++;
+                	       		fullQuery = fullQuery.replace(content, "r"+i+content);
+                	       		edgeCondition += "ID(r"+i+") IN $r"+ i + " AND ";
+                	       		rlist = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
+                	       	}else
+                	       		continue;
+                        }
+                        replacement = edgeCondition.substring(0,edgeCondition.length()-5);
+                	}
+                	fullQuery = fullQuery.replace(target, replacement);
+                    rlistSplit = rlist.split("\\s+");
+
+                    
+
+                }
+            }
+        }
+
+        if(fullQuery.contains("IN null")){
+            System.out.println("Nothing in view");
+            return new HashMap<String,Set<String>>();
+        }
+
+        System.out.println(fullQuery.length());
+
+        File logger = new File("./test/log.txt");
+        try{
+            FileWriter l = new FileWriter(logger);
+            l.write(fullQuery);
+        }
+        catch(Exception e) {e.printStackTrace();}
+
+        // edit start from here
+        // uncomment it if not do path view
+
+        LinkedList<String> usedViews = vql.usedViews();
+        String singleViewName =  usedViews.getFirst();
+        
+        // Only checking the path pattern correctness if the USE query itsels has a path pattern in it
+        if (typeTable.get(singleViewName).equals("PATH") & cmd.contains("=(")){   
+        	//instead of using pathRelTable to check, try to get result from there
+        	// make a params map for each eage pairs
+        	if(cmd.contains("*")) {
+            	//it's using a view containing paths. first find how many 
+            	//edges are included by counting the "-"
+            	 HashMap<String,String> allPathReturned= pathRelTable.get(singleViewName);
+        		
+            	 for(Map.Entry<String,String> entry : allPathReturned.entrySet()){
+            		 String appendedToQuery = "";
+            		 rlist = entry.getValue();
+            		 rlistSplit = rlist.split("\\s+");
+                	 String sampleRlist = rlistSplit[0];
+                	 edgeNum = sampleRlist.length() - sampleRlist.replace("-", "").length() + 1;
+                	 for(int i = 1; i <= edgeNum; i++) {
+                		 appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
+                	 }
+                	 appendedToQuery = appendedToQuery  + "() WHERE ";
+                	 for(int i = 1; i <= edgeNum; i++) {
+                		 appendedToQuery = appendedToQuery  + "ID(r" + i + ") in $r" + i + " AND ";
+                	 }
+                	 String beforeStar = fullQuery.split("\\*")[0];
+                	 String afterStar = fullQuery.split("\\*")[1];
+                	 String newQuery = beforeStar + appendedToQuery.substring(0,appendedToQuery.length()-5) + afterStar;   	
+                	return iterateThroughEdges(newQuery, rlistSplit);
+            	 }
+            	 
+            	
+            	
+            }else {
+            	return iterateThroughEdges(fullQuery, rlistSplit);
+            }
+
+        } else {
+            System.out.println("Before calling execute query");
+            connector.executeQuery(fullQuery);
+            System.out.println("After the call to execute query");
+        }
+
+        // edit end from here
+
+        return new HashMap<String,Set<String>>();
 
     }
 
@@ -984,6 +1294,7 @@ public class Main {
 
         List<String> edgeidentifiers = vql.relationSymbols();
         List<String> nodeidentifiers = vql.nodeSymbols();
+        String pathName = vql.getPathName();
 
         /*System.out.println("****************");
         for (String e: edgeidentifiers) {
@@ -1012,50 +1323,81 @@ public class Main {
                 String singleViewName =  usedViews.getFirst();
                 
                 
-                if(cmd.contains("*")) {
-                	//it's using a view containing paths. first find how many 
-                	//edges are included by counting the "-"
-                	 rlist = pathRelTable.get(singleViewName);
-                	 rlistSplit = rlist.split("\\s+");
-                	 String sampleRlist = rlistSplit[0];
-                	 edgeNum = sampleRlist.length() - sampleRlist.replace("-", "").length() + 1;
-                	 for(int i = 1; i <= edgeNum; i++) {
-                		 appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
-                	 }
-                	 appendedToQuery = appendedToQuery  + "() WHERE ";
-                	 for(int i = 1; i <= edgeNum; i++) {
-                		 appendedToQuery = appendedToQuery  + "ID(r" + i + ") in $r" + i + " AND ";
-                	 }
-                	 String beforeStar = fullQuery.split("\\*")[0];
-                	 String afterStar = fullQuery.split("\\*")[1];
-                	 fullQuery = beforeStar + appendedToQuery.substring(0,appendedToQuery.length()-5) + afterStar;
-                	 
-                	 
+                if(!cmd.contains("*")) {
+                	for (String nodeName : vql.addWhereClause.keySet()) {
+                        for (String viewName : vql.addWhereClause.get(nodeName)) {
+
+                            String target = nodeName + " IN " + viewName;
+                            String replacement = "";
+                            if(viewName.contains(".")) {
+                            	if(vql.nodeSymbols().contains(nodeName))
+                            		replacement = "ID(" + nodeName + ") IN " + nodeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                            	else if (vql.relationSymbols().contains(nodeName))
+                            		replacement = "ID(" + nodeName + ") IN " + edgeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                            	else if (vql.getPathName().equals(nodeName)) {
+                            		//first add name to the relations, if not exists
+                            		  Matcher m = java.util.regex.Pattern.compile("\\[([^\\[\\]]+)]").matcher(fullQuery);
+                            		  int i = 1;
+                            		  String edgeCondition = "";
+                                      while (m.find()) {
+                                      	String content = m.group(1);
+                              	       	if(content.matches("^:.*")) {
+                              	       		while(fullQuery.contains("r"+i)) i++;
+                              	       		fullQuery = fullQuery.replace(content, "r"+i+content);
+                              	       		edgeCondition += "ID(r"+i+") IN $r"+ i + " AND ";
+                              	       		HashMap<String,String> dd = pathRelTable.get(viewName.split("\\.")[0]);
+                              	       		rlist = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
+                              	       	}else
+                              	       		continue;
+                                      }
+                                      replacement = edgeCondition.substring(0,edgeCondition.length()-5);
+                            	}else
+                            		System.out.println("No such item in the view");
+                            		
+                            } else {
+                            	String nodeids = "[";
+                            	HashMap<String,Set<String>> nodesInViewDiffName = nodeTable.get(viewName.split("\\.")[0]);
+                            	for(Set<String> part :nodesInViewDiffName.values()) {
+                            		nodeids += part.toString().substring(1,part.toString().length()-1);
+                            		nodeids += ",";
+                            	}
+                            	nodeids += "]";
+                            	replacement = "ID(" + nodeName + ") IN " + nodeids;
+                            }
+                            fullQuery = fullQuery.replace(target, replacement);
+                            rlistSplit = rlist.split("\\s+");
+
+                        }
+                    }
                 	
-                	
-                	
-                }else{
                 	//normal case: when the view used containing only nodes/edges
                 	//nodes
 //                    for (String id : nodeidentifiers) { //we look at all node identifiers that reside in the query
-//                        appendedToQuery = appendedToQuery + " AND ID(" + id + ") IN " + nodeTable.get(singleViewName);
+//                    	String nodeids = "[";
+//                    	HashMap<String,Set<String>> nodesInViewDiffName = nodeTable.get(singleViewName);
+//                    	for(Set<String> part :nodesInViewDiffName.values()) {
+//                    		nodeids += part.toString().substring(1,part.toString().length()-1);
+//                    		nodeids += ",";
+//                    	}
+//                    	nodeids += "]";
+//                        appendedToQuery = appendedToQuery + " AND ID(" + id + ") IN " + nodeids;
 //                    }
-
-                    //edges
-                    for (String id : edgeidentifiers) {
-                        appendedToQuery = appendedToQuery + " AND ID(" + id + ") IN " + edgeTable.get(singleViewName);
-                    }
-
-                    String beforeReturn = fullQuery.split("RETURN")[0];
-                    String afterReturn = " RETURN " + fullQuery.split("RETURN")[1];
-
-
-                    if (vql.containsWhere()) {
-                        fullQuery = beforeReturn + appendedToQuery + afterReturn;
-                    } else {
-                        appendedToQuery = appendedToQuery.replaceFirst("AND", "");
-                        fullQuery = beforeReturn + "WHERE " + appendedToQuery + afterReturn;
-                    }         	
+//
+//                    //edges
+//                    for (String id : edgeidentifiers) {
+//                        appendedToQuery = appendedToQuery + " AND ID(" + id + ") IN " + edgeTable.get(singleViewName);
+//                    }
+//
+//                    String beforeReturn = fullQuery.split("RETURN")[0];
+//                    String afterReturn = " RETURN " + fullQuery.split("RETURN")[1];
+//
+//
+//                    if (vql.containsWhere()) {
+//                        fullQuery = beforeReturn + appendedToQuery + afterReturn;
+//                    } else {
+//                        appendedToQuery = appendedToQuery.replaceFirst("AND", "");
+//                        fullQuery = beforeReturn + "WHERE " + appendedToQuery + afterReturn;
+//                    }         	
                 }
             } else if(usedViews.size()>1){
                 //Then there are more than 2 views being used and we treat it as a global, since there are IN clauses
@@ -1075,11 +1417,43 @@ public class Main {
 
             for (String nodeName : vql.addWhereClause.keySet()) {
                 for (String viewName : vql.addWhereClause.get(nodeName)) {
+                	
+                	if(vql.nodeSymbols().contains(nodeName)) {
+                		String target = nodeName + " IN " + viewName;
+                        String replacement;
+                        if(viewName.contains(".")) {
+                        	replacement = "ID(" + nodeName + ") IN " + nodeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                        } else {
+                        	String nodeids = "[";
+                        	HashMap<String,Set<String>> nodesInViewDiffName = nodeTable.get(viewName.split("\\.")[0]);
+                        	for(Set<String> part :nodesInViewDiffName.values()) {
+                        		nodeids += part.toString().substring(1,part.toString().length()-1);
+                        		nodeids += ",";
+                        	}
+                        	nodeids += "]";
+                        	replacement = "ID(" + nodeName + ") IN " + nodeids;
+                        }
+                        fullQuery = fullQuery.replace(target, replacement);
+                	}else if(vql.relationSymbols().contains(nodeName)) {
+                		String target = nodeName + " IN " + viewName;
+                        String replacement;
+                        if(viewName.contains(".")) {
+                        	replacement = "ID(" + nodeName + ") IN " + edgeTable.get(viewName.split("\\.")[0]).get("ID("+viewName.split("\\.")[1]+")");
+                        } else {
+                        	String edgeids = "[";
+                        	HashMap<String,Set<String>> edgesInViewDiffName = edgeTable.get(viewName.split("\\.")[0]);
+                        	for(Set<String> part :edgesInViewDiffName.values()) {
+                        		edgeids += part.toString().substring(1,part.toString().length()-1);
+                        		edgeids += ",";
+                        	}
+                        	edgeids += "]";
+                        	replacement = "ID(" + nodeName + ") IN " + edgeids;
+                        }
+                        fullQuery = fullQuery.replace(target, replacement);
+                		
+                	}
 
-                    String target = nodeName + " IN " + viewName;
-                    String replacement = "ID(" + nodeName + ") IN " + nodeTable.get(viewName);
-
-                    fullQuery = fullQuery.replace(target, replacement);
+                    
 
                 }
             }
@@ -1109,40 +1483,37 @@ public class Main {
         if (typeTable.get(singleViewName).equals("PATH") & cmd.contains("p=")){   
         	//instead of using pathRelTable to check, try to get result from there
         	// make a params map for each eage pairs
-        	long start = System.currentTimeMillis();
-        	StringBuilder updatedQuery;
-        	String rows = "";
-            StringBuilder rowsSB = new StringBuilder();
-            Map<String, Object> row;
-            int numResults = 0;
-            try (Transaction tx = connector.getTransaction()) {
-		       	for(int i = 0; i < rlistSplit.length; i++) {
-		       		 updatedQuery = new StringBuilder(fullQuery);
-		       		 String sample = rlistSplit[i];
-		       		 String[] edgeList = sample.split("-"); 
-		       		 for(int j = 1; j <= edgeList.length; j++) {
-		       			updatedQuery = new StringBuilder(updatedQuery.toString().replace("$r"+j,"[" + edgeList[j-1] + "]"));         
-		       		 }
-		       		 Result result = connector.executeWithParam(updatedQuery.toString(),tx);
-		       		 while (result.hasNext()) {
-	                    // Mohanna: Changed here to not have object initialization in every loop
-	                    row = result.next();
-	                    numResults++;
-	                    for (Map.Entry<String, Object> column : row.entrySet()) {
-	                        rowsSB.append(column.getKey() + ": " + column.getValue() + "; ");
-	                    }
-	                    rowsSB.append("\n");
-	                 } 
-		       	 }
-            }catch(Exception e) {
-                System.out.println("An error occurred in executing the transaction to execute the query");
-                e.printStackTrace();
+        	if(cmd.contains("*")) {
+            	//it's using a view containing paths. first find how many 
+            	//edges are included by counting the "-"
+            	 HashMap<String,String> allPathReturned= pathRelTable.get(singleViewName);
+        		
+            	 for(Map.Entry<String,String> entry : allPathReturned.entrySet()){
+            		 String appendedToQuery = "";
+            		 rlist = entry.getValue();
+            		 rlistSplit = rlist.split("\\s+");
+                	 String sampleRlist = rlistSplit[0];
+                	 edgeNum = sampleRlist.length() - sampleRlist.replace("-", "").length() + 1;
+                	 for(int i = 1; i <= edgeNum; i++) {
+                		 appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
+                	 }
+                	 appendedToQuery = appendedToQuery  + "() WHERE ";
+                	 for(int i = 1; i <= edgeNum; i++) {
+                		 appendedToQuery = appendedToQuery  + "ID(r" + i + ") in $r" + i + " AND ";
+                	 }
+                	 String beforeStar = fullQuery.split("\\*")[0];
+                	 String afterStar = fullQuery.split("\\*")[1];
+                	 String newQuery = beforeStar + appendedToQuery.substring(0,appendedToQuery.length()-5) + afterStar;   	
+                	 iterateThroughEdges(newQuery, rlistSplit);
+            	 }
+            	 
+            	
+            	
+            }else {
+            	iterateThroughEdges(fullQuery, rlistSplit);
             }
-	       	rows = rowsSB.toString();
-	       	long duration = System.currentTimeMillis() - start;
-
-            System.out.println("There are " + numResults + " elements in the query");
-            System.out.println("Took " + duration + " ms to process result rows");
+        	
+        	
  
         	//time for edge seek only : NO BULK SEEK  ---START----- 	
 //        	long start = System.currentTimeMillis();
@@ -1218,6 +1589,57 @@ public class Main {
 
     }
 
+    public static HashMap<String,Set<String>> iterateThroughEdges(String fullQuery, String[] rlistSplit) {
+    	long start = System.currentTimeMillis();
+    	StringBuilder updatedQuery;
+    	String rows = "";
+        StringBuilder rowsSB = new StringBuilder();
+        Map<String, Object> row;
+        int numResults = 0;
+        HashMap<String,Set<String>> nodeids = new HashMap<String,Set<String>>();
+        if(fullQuery.equals("")) return nodeids ;
+        try (Transaction tx = connector.getTransaction()) {
+	       	for(int i = 0; i < rlistSplit.length; i++) {
+	       		 updatedQuery = new StringBuilder(fullQuery);
+	       		 String sample = rlistSplit[i];
+	       		 String[] edgeList = sample.split("-"); 
+	       		 Map<String, Object> params = new HashMap<>();
+	       		 List<Integer> intList = new ArrayList<>();
+	       		 for(int j = 1; j <= edgeList.length; j++) {
+	       			intList.add(Integer.valueOf(edgeList[j-1].stripLeading()));
+	       			params.put("r"+j, intList );
+	       			//updatedQuery = new StringBuilder(updatedQuery.toString().replace("$r"+j,"[" + edgeList[j-1] + "]"));         
+	       		 }
+	       		 Result result = connector.executeWithParam(fullQuery,params,tx);
+//	       		 while (result.hasNext()) {
+//                    // Mohanna: Changed here to not have object initialization in every loop
+//                    row = result.next();
+//                    numResults++;
+//                    for (Map.Entry<String, Object> column : row.entrySet()) {
+//                        rowsSB.append(column.getKey() + ": " + column.getValue() + "; ");
+//                        Set<String> oneSet;
+//                    	if(!nodeids.containsKey(column.getKey())) 
+//                    		oneSet = new HashSet<String>();
+//                        else
+//                        	oneSet = nodeids.get(column.getKey());
+//                        oneSet.add(column.getValue().toString());
+//                        nodeids.put(column.getKey(), oneSet);
+//                    }
+//                    rowsSB.append("\n");
+//                 } 
+	       	 }
+        }catch(Exception e) {
+            System.out.println("An error occurred in executing the transaction to execute the query");
+            e.printStackTrace();
+        }
+       	rows = rowsSB.toString();
+       	long duration = System.currentTimeMillis() - start;
+
+        System.out.println("There are " + numResults + " elements in the query");
+        System.out.println("Took " + duration + " ms to process result rows");
+        return nodeids;
+    }
+    
     public static void processMainViewMethod1(String cmd, boolean materialized) {
         String viewname = vql.getViewName();
         String fullQuery = cmd.split(viewname)[1];
@@ -1644,70 +2066,70 @@ public class Main {
     }
 
     // TODO: Is it even getting called in this version?
-    public static void loadTablesFromFiles(String size){
-
-        File directory = new File("./test/"+size);
-
-        try {
-            for (File fileEntry : directory.listFiles()) {
-
-
-                String name = fileEntry.getName();
-                System.out.println(name);
-                String viewName = "";
-                if (name.endsWith("Node.txt")) {
-                    viewName = name.split("Node\\.txt")[0];
-
-                    Scanner myReader = new Scanner(fileEntry);
-                    if(!myReader.hasNextLine()) continue;
-                    String line = myReader.nextLine();
-                    if(line.contains("null")) continue;
-                    if(line.contains("[]")) {
-                        nodeTable.put(viewName,new HashSet<>());
-                        continue;
-                    }
-
-                    String entries = line.split("\\[")[1].split("\\]")[0];
-                    entries = entries.trim();
-
-                    Set<String> allEntries =  new HashSet<>(Arrays.asList(entries.split(",")));
-
-
-                    nodeTable.put(viewName, allEntries);
-
-
-                }
-                if (name.endsWith("Rel.txt")) {
-                    viewName = name.split("Rel\\.txt")[0];
-
-                    Scanner myReader = new Scanner(fileEntry);
-                    if(!myReader.hasNextLine()) continue;
-
-                    String line = myReader.nextLine();
-                    if(line.contains("null")) continue;
-
-                    if(line.contains("[]")) {
-                        edgeTable.put(viewName,new HashSet<>());
-                        continue;
-                    }
-
-                    String entries = line.split("\\[")[1].split("\\]")[0];
-
-                    Set<String> allEntries =  new HashSet<>(Arrays.asList(entries.split(",")));
-
-                    edgeTable.put(viewName, allEntries);
-
-                }
-
-            }
-            //todo
-        }
-        catch(Exception e){
-            e.printStackTrace();
-        }
-
-
-    }
+//    public static void loadTablesFromFiles(String size){
+//
+//        File directory = new File("./test/"+size);
+//
+//        try {
+//            for (File fileEntry : directory.listFiles()) {
+//
+//
+//                String name = fileEntry.getName();
+//                System.out.println(name);
+//                String viewName = "";
+//                if (name.endsWith("Node.txt")) {
+//                    viewName = name.split("Node\\.txt")[0];
+//
+//                    Scanner myReader = new Scanner(fileEntry);
+//                    if(!myReader.hasNextLine()) continue;
+//                    String line = myReader.nextLine();
+//                    if(line.contains("null")) continue;
+//                    if(line.contains("[]")) {
+//                        nodeTable.put(viewName,new HashMap<>());
+//                        continue;
+//                    }
+//
+//                    String entries = line.split("\\[")[1].split("\\]")[0];
+//                    entries = entries.trim();
+//
+//                    Set<String> allEntries =  new HashSet<>(Arrays.asList(entries.split(",")));
+//
+//
+//                    nodeTable.put(viewName, allEntries);
+//
+//
+//                }
+//                if (name.endsWith("Rel.txt")) {
+//                    viewName = name.split("Rel\\.txt")[0];
+//
+//                    Scanner myReader = new Scanner(fileEntry);
+//                    if(!myReader.hasNextLine()) continue;
+//
+//                    String line = myReader.nextLine();
+//                    if(line.contains("null")) continue;
+//
+//                    if(line.contains("[]")) {
+//                        edgeTable.put(viewName,new HashSet<>());
+//                        continue;
+//                    }
+//
+//                    String entries = line.split("\\[")[1].split("\\]")[0];
+//
+//                    Set<String> allEntries =  new HashSet<>(Arrays.asList(entries.split(",")));
+//
+//                    edgeTable.put(viewName, allEntries);
+//
+//                }
+//
+//            }
+//            //todo
+//        }
+//        catch(Exception e){
+//            e.printStackTrace();
+//        }
+//
+//
+//    }
 
     // TODO: Is it even getting called in this version?
     public static void createMetaInfoFromQueries(String viewPath){
@@ -1747,47 +2169,47 @@ public class Main {
 
     }
 
-    public static void testUses(String size){
-
-        loadTablesFromFiles(size); //load first
-        //second, fill the meta data tables in vql, needed for the changegraph tests
-        try {
-            createMetaInfoFromQueries("./test/ViewInits.txt");
-            createMetaInfoFromQueries("./test/initFileExample.txt");
-
-            System.out.println("Done populating all tables - moving on to each use");
-
-            File uses = new File("./test/ViewUses.txt");
-            Scanner useReader = new Scanner(uses);
-
-
-            Map<String, Long> durations = new HashMap<>();
-
-
-
-
-            while(useReader.hasNextLine()){
-                String line = useReader.nextLine();
-                if(line.startsWith("*") || line.startsWith(" ") || line.startsWith("\n")) continue;
-                durations.put(line, 0l);
-            }
-
-            Set<String> queries = durations.keySet();
-            for(int i=0; i<1; i++) {
-                for (String q : queries) {
-
-                    durations.put(q, noGuiTest(q, false) + durations.get(q));
-                    System.out.println("Query:\n"+q+"\nAvg:\t"+durations.get(q));
-
-                }
-            }
-
-        }
-        catch(Exception e){
-            e.printStackTrace();
-        }
-
-    }
+//    public static void testUses(String size){
+//
+//        loadTablesFromFiles(size); //load first
+//        //second, fill the meta data tables in vql, needed for the changegraph tests
+//        try {
+//            createMetaInfoFromQueries("./test/ViewInits.txt");
+//            createMetaInfoFromQueries("./test/initFileExample.txt");
+//
+//            System.out.println("Done populating all tables - moving on to each use");
+//
+//            File uses = new File("./test/ViewUses.txt");
+//            Scanner useReader = new Scanner(uses);
+//
+//
+//            Map<String, Long> durations = new HashMap<>();
+//
+//
+//
+//
+//            while(useReader.hasNextLine()){
+//                String line = useReader.nextLine();
+//                if(line.startsWith("*") || line.startsWith(" ") || line.startsWith("\n")) continue;
+//                durations.put(line, 0l);
+//            }
+//
+//            Set<String> queries = durations.keySet();
+//            for(int i=0; i<1; i++) {
+//                for (String q : queries) {
+//
+//                    durations.put(q, noGuiTest(q, false) + durations.get(q));
+//                    System.out.println("Query:\n"+q+"\nAvg:\t"+durations.get(q));
+//
+//                }
+//            }
+//
+//        }
+//        catch(Exception e){
+//            e.printStackTrace();
+//        }
+//
+//    }
 
     // TODO: Remove these unused functions
     //To test and validate initialization times for views, where view definition queries are stored in fileName under the example format.
@@ -1883,10 +2305,10 @@ public class Main {
         return result;
     }
 
-    public static void validateReturn(String size){
-
-        testUses(size);
-        System.out.println("next;");
+//    public static void validateReturn(String size){
+//
+//        testUses(size);
+//        System.out.println("next;");
 //        countQuery("MATCH (n:User) WHERE n.upvotes > 1000 RETURN COUNT(DISTINCT n) as c"); //u 10
 //        System.out.println("next;");
 
@@ -1962,7 +2384,7 @@ public class Main {
 
 
 
-    }
+//    }
 
     public static void countQuery(String q){
 

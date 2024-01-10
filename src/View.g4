@@ -24,7 +24,7 @@ pipeline    : 'WITH' replacements pipeconditions | 'WITH' replacements pipecondi
 replacements : NAME as NAME (',' replacements) |
                function as NAME (',' replacements) |
                NAME (',' replacements) |NAME as NAME | function as NAME | NAME |
-               iteration as NAME (',' replacements) | iteration as NAME
+               iteration as NAME (',' replacements) | iteration as NAME 
 ;
 
 iteration : '[' NAME 'IN' range '(' validVal ',' validVal ')' '|'  iterationCase ']'
@@ -37,7 +37,7 @@ iterationCase : 'CASE WHEN' pipeexpr 'THEN' validVal 'ELSE' validVal 'END';
 size: 'SIZE' | 'size';
 
 range: 'RANGE' | 'range';
-pipeconditions  : 'WHERE' pipeexpr |
+pipeconditions  : 'WHERE' pipeexpr | KEYWORD expr conditions | KEYWORD path conditions
 ;
 
 pipeexpr    : attribute COMPARISON attribute |
@@ -80,7 +80,7 @@ retval : 'NODES(' NAME ')' |
          ;
 
 expr : viewatom | '*';
-variable :  '('nodeName')' | '('nodeName':'type')'; // nodeName
+variable :  '('nodeName')' | '('nodeName':'type')' | '()'; // nodeName
 type    : NAME ;
 nodeName : NAME ;
 // Changed by Mohanna to include
@@ -99,7 +99,7 @@ boolexpr    :
               boolexpr 'AND' boolexpr |
               boolexpr 'OR' boolexpr |
               VALUE OPERATOR attribute | //not supported
-              NAME 'IN' NAME | //viewUse
+              NAME 'IN' NAME('.'NAME)? | //viewUse: only get one instance of return value
               '(' boolexpr ')' |
               'not' boolexpr |
               'NOT' boolexpr |

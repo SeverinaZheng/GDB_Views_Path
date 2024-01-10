@@ -13,8 +13,6 @@ import org.neo4j.dbms.api.DatabaseManagementServiceBuilder;
 import org.neo4j.graphdb.Node;
 import org.neo4j.io.fs.FileUtils;
 
-import java.util.ResourceBundle;
-
 import static org.neo4j.configuration.GraphDatabaseSettings.DEFAULT_DATABASE_NAME;
 
 public class Neo4jGraphConnector {
@@ -29,7 +27,7 @@ public class Neo4jGraphConnector {
     //private File dbHomeBackup;
 
     // NOTE: This was previously static but I'm not sure of the reason
-    public Set<String> nodeSet = new HashSet<String>();
+    public HashMap<String,Set<String>> nodeSet = new HashMap<String,Set<String>>();
 
     public Neo4jGraphConnector(String size) {
 
@@ -83,7 +81,7 @@ public class Neo4jGraphConnector {
         } );
     }
 
-    public Set<String> getNodeSet(){
+    public HashMap<String,Set<String>> getNodeSet(){
         return nodeSet;
     }
 
@@ -91,53 +89,76 @@ public class Neo4jGraphConnector {
         // Index 0  -> Set<Relationship>, relationships of the path
         // Index 1 -> String path topology
     public Object[] pathQuery(String query){
-
         System.out.println("Executing query: " + query);
 
-        Set<Relationship> retset = new HashSet<>();
-        StringBuilder pathRelationships = new StringBuilder();
-        String pathRelationshipsStr;
+        HashMap<String,Set<Relationship>> retset = new HashMap<>();
+        HashMap<String,String> pathRelationshipsStr= new HashMap<>();
         String tmp;
         Object[] returnObjects = new Object[2];
 
         try (Transaction tx = db.beginTx()) {
+        	long start = System.currentTimeMillis();
             Result result = tx.execute(query);
-
+        	long executeEnd = System.currentTimeMillis();
+        	
             while (result.hasNext()) {
                 Map<String, Object> row = result.next();
 
                 for (Map.Entry<String, Object> column : row.entrySet()) {
 
+                	String pathName = column.getKey();
                     Path path = (Path)column.getValue();
+                    StringBuilder pathRelationships;
+                    if(pathRelationshipsStr.containsKey(pathName))
+                    	pathRelationships = new StringBuilder(pathRelationshipsStr.get(pathName));
+                    else
+                    	pathRelationships = new StringBuilder();
                     //System.out.println(path);
 
                     Iterable<Relationship> iterable = path.relationships();
 
+                    Set<Relationship> relInOnePath;
+                    if(retset.containsKey(pathName)  ) 
+                    		relInOnePath = retset.get(pathName);
+                    else
+                    	relInOnePath = new HashSet<>();
                     for (Relationship rel : iterable) {
                         tmp = rel.toString();
                         // TODO: Need to make sure this structure of rel.toString is always consistent
                         String edgeId = tmp.substring(tmp.indexOf(",") + 1, tmp.indexOf("]"));
                         pathRelationships.append(edgeId).append("-");
-                        retset.add(rel);
+                        relInOnePath.add(rel);
                     }
 
                     // Removing the extra "-" at the end of the string and adding " " between the paths
                     pathRelationships.deleteCharAt(pathRelationships.length() - 1);
                     pathRelationships.append(" ");
+                    pathRelationshipsStr.put(pathName, pathRelationships.toString());
+                    retset.put(pathName, relInOnePath);
                 }
 
             }
+            
 
-            pathRelationshipsStr = pathRelationships.toString();
+        	long processPath = System.currentTimeMillis();
 
             // Nodes in relationshipNodes are stored in (static HashSet) nodeSet
             relationshipNodes(retset);
+
+        	long processNode = System.currentTimeMillis();
+        	System.out.println("execute:" + (executeEnd-start));
+        	System.out.println("process Path:" + (processPath - executeEnd));
+        	System.out.println("processNode" + (processNode-processPath));
 
             tx.commit();
 
         }
 
         System.out.println("Return set contains " + retset.size());
+        for (Map.Entry<String,Set<Relationship>> entry : retset.entrySet()) {
+        	System.out.println("name:"+entry.getKey());
+        	System.out.println("size:"+entry.getValue().size());
+        }
 
         returnObjects[0] = retset;
         returnObjects[1] = pathRelationshipsStr;
@@ -198,9 +219,9 @@ public class Neo4jGraphConnector {
     }
 
     // Executes the query in a transaction on db:GraphDatabaseService
-    public Set<String> executeQuery(String query){
+    public HashMap<String,Set<String>> executeQuery(String query){
 
-        Set<String> nodeids = new HashSet<String>();
+    	HashMap<String,Set<String>> nodeids = new HashMap<String,Set<String>>();
 
         if(query.equals("")) return nodeids ;
 
@@ -225,9 +246,16 @@ public class Neo4jGraphConnector {
                 while (result.hasNext())
                 {
                     Map<String, Object> row = result.next();
+                                        
                     for (Map.Entry<String, Object> column : row.entrySet())
                     {
-                        nodeids.add(column.getValue().toString());
+                    	Set<String> oneSet;
+                    	if(!nodeids.containsKey(column.getKey())) 
+                    		oneSet = new HashSet<String>();
+                        else
+                        	oneSet = nodeids.get(column.getKey());
+                        oneSet.add(column.getValue().toString());
+                        nodeids.put(column.getKey(), oneSet);
                     }
                 }
                 endTime = System.currentTimeMillis();
@@ -356,35 +384,8 @@ public class Neo4jGraphConnector {
         return nodeids;
     }
 
-    public static Result executeWithParam(String query,Transaction tx) {
-    	Result result = null;
-	    List<String> IDLists = new ArrayList<>();
-	    Matcher m = java.util.regex.Pattern.compile("\\[([^\\[\\]:]+)]").matcher(query);
-	
-	    while (m.find()) {
-	     	String content = m.group(1);
-	       	if(content.matches(".*[a-zA-Z].*"))
-	       		continue;
-	       	else
-	       		IDLists.add(content);
-	    }
-	
-	    Map<String, Object> params = new HashMap<>();
-	    StringBuilder updatedQuery = new StringBuilder(query);
-	    String key;
-	
-	    for (int i = 0; i < IDLists.size(); i++) {
-	        key = "ids" + (i + 1);
-	
-	        List<Integer> intList = new ArrayList<>();
-	        for (String s : IDLists.get(i).split(",\\s*")) {
-	            intList.add(Integer.valueOf(s.stripLeading()));
-	        }
-	
-	        params.put(key, intList);
-	        updatedQuery = new StringBuilder(updatedQuery.toString().replace("[" + IDLists.get(i) + "]", "$"+key));
-	    }
-	    result = tx.execute(updatedQuery.toString(), params);
+    public static Result executeWithParam(String query, Map<String, Object> params,Transaction tx) {
+    	Result  result = tx.execute(query, params);
 	       
     	return result;
     }
@@ -415,6 +416,15 @@ public class Neo4jGraphConnector {
         }
 
         return result;
+    }
+    public void executeDirectly(String query) {
+    	try( Transaction tx = db.beginTx()) {
+	    	long now = System.currentTimeMillis();
+	        Result result = tx.execute( query );
+	        long end = System.currentTimeMillis();
+	        System.out.println("Took " + (end-now) + " ms to execute transaction");
+    	}
+        
     }
     public int createViewOnGraph(String query) {
         Set<String> nodeids = new HashSet<String>();
@@ -777,17 +787,27 @@ public class Neo4jGraphConnector {
     }
 
     // Add the nodes involved in a set of Relationships to nodeSet for future reference
-    public Set<String> relationshipNodes(Set<Relationship> relationshipSet){
+    public HashMap<String,Set<String>> relationshipNodes( HashMap<String,Set<Relationship>> relationshipSet){
 
-        Set<String> nodeids = new HashSet<String>();
-        for(Relationship r : relationshipSet){
-            Node[] nodeSet = r.getNodes();
-            for (Node n : nodeSet){
-                String nodeid = ""+n.getId();
-
-                // If nodeid already exists in nodeids(HashSet) the item is not inserted
-                nodeids.add(nodeid);
-            }
+    	HashMap<String,Set<String>> nodeids = new HashMap<String,Set<String>>();
+        for(Map.Entry<String,Set<Relationship>> entry : relationshipSet.entrySet()){
+        	String pathName = entry.getKey();
+        	Set<Relationship> relations = entry.getValue();
+        	for(Relationship r : relations){
+	            Node[] nodeSet = r.getNodes();
+	            for (Node n : nodeSet){
+	                String nodeid = ""+n.getId();
+	
+	                // If nodeid already exists in nodeids(HashSet) the item is not inserted
+	                Set<String> nodeidPath; 
+	                if(nodeids.containsKey(pathName))
+	                	nodeidPath = nodeids.get(pathName);
+	                else
+	                	nodeidPath = new HashSet<>();
+	                nodeidPath.add(nodeid);
+	                nodeids.put(pathName,nodeidPath);
+	            }
+        	}
         }
 
         // update nodeSet to hold the current nodeids
