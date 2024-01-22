@@ -268,6 +268,16 @@ public interface ViewListener extends ParseTreeListener {
 	 */
 	void exitRelationLength(ViewParser.RelationLengthContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link ViewParser#pathExp}.
+	 * @param ctx the parse tree
+	 */
+	void enterPathExp(ViewParser.PathExpContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#pathExp}.
+	 * @param ctx the parse tree
+	 */
+	void exitPathExp(ViewParser.PathExpContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link ViewParser#path}.
 	 * @param ctx the parse tree
 	 */

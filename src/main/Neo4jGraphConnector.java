@@ -27,7 +27,7 @@ public class Neo4jGraphConnector {
     //private File dbHomeBackup;
 
     // NOTE: This was previously static but I'm not sure of the reason
-    public HashMap<String,Set<String>> nodeSet = new HashMap<String,Set<String>>();
+    public HashMap<String,List<Integer>> nodeSet = new HashMap<String,List<Integer>>();
 
     public Neo4jGraphConnector(String size) {
 
@@ -81,7 +81,7 @@ public class Neo4jGraphConnector {
         } );
     }
 
-    public HashMap<String,Set<String>> getNodeSet(){
+    public HashMap<String, List<Integer>> getNodeSet(){
         return nodeSet;
     }
 
@@ -92,7 +92,7 @@ public class Neo4jGraphConnector {
         System.out.println("Executing query: " + query);
 
         HashMap<String,Set<Relationship>> retset = new HashMap<>();
-        HashMap<String,String> pathRelationshipsStr= new HashMap<>();
+        HashMap<String,List<List<Integer>>> pathRelationshipsSet= new HashMap<>();
         String tmp;
         Object[] returnObjects = new Object[2];
 
@@ -101,40 +101,38 @@ public class Neo4jGraphConnector {
             Result result = tx.execute(query);
         	long executeEnd = System.currentTimeMillis();
         	
+        	int count = 0;
             while (result.hasNext()) {
                 Map<String, Object> row = result.next();
 
                 for (Map.Entry<String, Object> column : row.entrySet()) {
-
                 	String pathName = column.getKey();
                     Path path = (Path)column.getValue();
-                    StringBuilder pathRelationships;
-                    if(pathRelationshipsStr.containsKey(pathName))
-                    	pathRelationships = new StringBuilder(pathRelationshipsStr.get(pathName));
-                    else
-                    	pathRelationships = new StringBuilder();
-                    //System.out.println(path);
-
+                    List<List<Integer>> allEdges;
                     Iterable<Relationship> iterable = path.relationships();
-
-                    Set<Relationship> relInOnePath;
-                    if(retset.containsKey(pathName)  ) 
-                    		relInOnePath = retset.get(pathName);
+                    if(pathRelationshipsSet.containsKey(pathName))
+                    	allEdges = pathRelationshipsSet.get(pathName);
                     else
-                    	relInOnePath = new HashSet<>();
-                    for (Relationship rel : iterable) {
+                    	allEdges = new ArrayList<>();
+                    
+	                Set<Relationship> relInOnePath;
+	                if(retset.containsKey(pathName)  ) 
+	                	relInOnePath = retset.get(pathName);
+	                else
+	                  	relInOnePath = new HashSet<>();
+	                
+	                List<Integer> EdgesInOnePath = new ArrayList<>();
+	                for (Relationship rel : iterable) {
+                    	count++;
                         tmp = rel.toString();
                         // TODO: Need to make sure this structure of rel.toString is always consistent
                         String edgeId = tmp.substring(tmp.indexOf(",") + 1, tmp.indexOf("]"));
-                        pathRelationships.append(edgeId).append("-");
+                        EdgesInOnePath.add(Integer.parseInt(edgeId));
                         relInOnePath.add(rel);
                     }
-
-                    // Removing the extra "-" at the end of the string and adding " " between the paths
-                    pathRelationships.deleteCharAt(pathRelationships.length() - 1);
-                    pathRelationships.append(" ");
-                    pathRelationshipsStr.put(pathName, pathRelationships.toString());
-                    retset.put(pathName, relInOnePath);
+	                allEdges.add(EdgesInOnePath);
+	                pathRelationshipsSet.put(pathName, allEdges);
+	                retset.put(pathName, relInOnePath);
                 }
 
             }
@@ -147,7 +145,7 @@ public class Neo4jGraphConnector {
 
         	long processNode = System.currentTimeMillis();
         	System.out.println("execute:" + (executeEnd-start));
-        	System.out.println("process Path:" + (processPath - executeEnd));
+        	System.out.println("process Path:" + (processPath - executeEnd) + " num: " + count);
         	System.out.println("processNode" + (processNode-processPath));
 
             tx.commit();
@@ -161,7 +159,7 @@ public class Neo4jGraphConnector {
         }
 
         returnObjects[0] = retset;
-        returnObjects[1] = pathRelationshipsStr;
+        returnObjects[1] = pathRelationshipsSet;
         return returnObjects;
     }
 
@@ -219,9 +217,9 @@ public class Neo4jGraphConnector {
     }
 
     // Executes the query in a transaction on db:GraphDatabaseService
-    public HashMap<String,Set<String>> executeQuery(String query){
+    public HashMap<String,List<Integer>> executeQuery(String query){
 
-    	HashMap<String,Set<String>> nodeids = new HashMap<String,Set<String>>();
+    	HashMap<String,List<Integer>> nodeids = new HashMap<String,List<Integer>>();
 
         if(query.equals("")) return nodeids ;
 
@@ -234,7 +232,6 @@ public class Neo4jGraphConnector {
 
         // Case when the result set is NODE objects
         if(query.contains("RETURN DISTINCT ID(")){
-
             try( Transaction tx = db.beginTx()) {
                 long startTime = System.currentTimeMillis();
                 Result result = tx.execute( query );
@@ -249,15 +246,21 @@ public class Neo4jGraphConnector {
                                         
                     for (Map.Entry<String, Object> column : row.entrySet())
                     {
-                    	Set<String> oneSet;
+                    	List<Integer> oneSet;
                     	if(!nodeids.containsKey(column.getKey())) 
-                    		oneSet = new HashSet<String>();
+                    		oneSet = new ArrayList<>();
                         else
                         	oneSet = nodeids.get(column.getKey());
-                        oneSet.add(column.getValue().toString());
+                    	List<Integer> elementToAdd = Arrays.asList(Integer.parseInt(column.getValue().toString()));
+                    	oneSet.add(Integer.parseInt(column.getValue().toString()));
                         nodeids.put(column.getKey(), oneSet);
                     }
                 }
+                //get rid of duplicates
+                for(Map.Entry<String,List<Integer>> entry: nodeids.entrySet()) {
+                	nodeids.put(entry.getKey(), new ArrayList<>(
+                		      new HashSet<>(entry.getValue())));
+                } 
                 endTime = System.currentTimeMillis();
                 executionTime = endTime - startTime;
                 System.out.println("While Loop: " + executionTime + " milliseconds");
@@ -306,7 +309,6 @@ public class Neo4jGraphConnector {
         // OTHER CASES
         else {
             try (Transaction tx = db.beginTx()) {
-
                 long now = System.currentTimeMillis();
 
                 // Start of the new method
@@ -340,7 +342,7 @@ public class Neo4jGraphConnector {
 
                 Result result = tx.execute(updatedQuery.toString(), params);
                 // End of the new method
-
+                
                 //Result result = tx.execute(query);
                 long duration = System.currentTimeMillis() - now;
                 System.out.println("Took " + duration + " ms to execute transaction");
@@ -351,10 +353,6 @@ public class Neo4jGraphConnector {
                     // Mohanna: Changed here to not have object initialization in every loop
                     row = result.next();
                     numResults++;
-                    for (Map.Entry<String, Object> column : row.entrySet()) {
-                        rowsSB.append(column.getKey() + ": " + column.getValue() + "; ");
-                    }
-                    rowsSB.append("\n");
                 }
                 
                 rows = rowsSB.toString();
@@ -386,7 +384,8 @@ public class Neo4jGraphConnector {
 
     public static Result executeWithParam(String query, Map<String, Object> params,Transaction tx) {
     	Result  result = tx.execute(query, params);
-	       
+
+        
     	return result;
     }
     
@@ -787,24 +786,23 @@ public class Neo4jGraphConnector {
     }
 
     // Add the nodes involved in a set of Relationships to nodeSet for future reference
-    public HashMap<String,Set<String>> relationshipNodes( HashMap<String,Set<Relationship>> relationshipSet){
+    public HashMap<String,List<Integer>> relationshipNodes( HashMap<String,Set<Relationship>> relationshipSet){
 
-    	HashMap<String,Set<String>> nodeids = new HashMap<String,Set<String>>();
+    	HashMap<String,List<Integer>> nodeids = new HashMap<String,List<Integer>>();
         for(Map.Entry<String,Set<Relationship>> entry : relationshipSet.entrySet()){
         	String pathName = entry.getKey();
         	Set<Relationship> relations = entry.getValue();
         	for(Relationship r : relations){
 	            Node[] nodeSet = r.getNodes();
 	            for (Node n : nodeSet){
-	                String nodeid = ""+n.getId();
 	
 	                // If nodeid already exists in nodeids(HashSet) the item is not inserted
-	                Set<String> nodeidPath; 
+	                List<Integer> nodeidPath; 
 	                if(nodeids.containsKey(pathName))
 	                	nodeidPath = nodeids.get(pathName);
 	                else
-	                	nodeidPath = new HashSet<>();
-	                nodeidPath.add(nodeid);
+	                	nodeidPath = new ArrayList<>();
+	                nodeidPath.add((int)n.getId());
 	                nodeids.put(pathName,nodeidPath);
 	            }
         	}

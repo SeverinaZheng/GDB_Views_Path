@@ -595,7 +595,8 @@ public class QueryParser extends ViewBaseListener {
 
         // Checking for the PATH query type
         if (ctx.getChild(1) instanceof ViewParser.PathContext) {
-            pathName = ctx.path().NAME().getText();
+        	ViewParser.PathContext pathctx = (ViewParser.PathContext)ctx.getChild(1);
+            pathName = pathctx.NAME().getText();;
             // TODO: I'm suspicious of the condition check below
             if(pathName.equals(returnValExpr)) returnType = retType.PATH;
         }
@@ -615,6 +616,7 @@ public class QueryParser extends ViewBaseListener {
     public void enterPath(ViewParser.PathContext ctx){
         if(isViewUse || cg) return;
         pathName = ctx.expr().getText();
+        if(pathName.equals(returnValExpr)) returnType = retType.PATH;
     }
 
 

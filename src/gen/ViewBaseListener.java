@@ -327,6 +327,18 @@ public class ViewBaseListener implements ViewListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterPathExp(ViewParser.PathExpContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitPathExp(ViewParser.PathExpContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterPath(ViewParser.PathContext ctx) { }
 	/**
 	 * {@inheritDoc}

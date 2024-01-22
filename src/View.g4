@@ -8,7 +8,7 @@ root : COMMAND NAME viewuse scope query |
 scope: 'LOCAL' | 'GLOBAL' |;
 
 query :  KEYWORD expr conditions pipeline? returnstmt |
-         KEYWORD path conditions pipeline? returnstmt
+         KEYWORD pathExp conditions pipeline? returnstmt
         ;
 
 changegraph : KEYWORD expr conditions 'SET' setattr
@@ -89,7 +89,8 @@ nodeName : NAME ;
 relation : relationValue?(':'type)?('|'type)*(relationLength)?;
 relationValue : NAME ;
 relationLength: '*' | '*'VALUE | '*'VALUE'..'VALUE | '*..'VALUE | '*'VALUE'..' ;
-path    : NAME '=' expr ;
+pathExp    :  path (',' path)*;
+path  :   NAME '=' expr ;
 conditions  : 'WHERE' boolexpr | ;
 boolexpr    :
               attribute COMPARISON attribute |
