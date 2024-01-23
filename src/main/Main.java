@@ -458,10 +458,31 @@ public class Main {
                     long total = System.currentTimeMillis() - now;
                     System.out.println("Took " + total + "ms to create views");
                 } else if (vql.isViewUse()) {
-                    long now = System.currentTimeMillis();
+                	long now = System.currentTimeMillis();
 
-                    // Changed temporarily
-                    processUseView(command);
+                    // Break into multiple queries if containing "WITH"
+                    String[] breakByWith = command.split("WITH");
+                    String subCommand = command;
+                    HashMap<String,List<Integer>> intermediateResult = new HashMap<>();
+                    if(breakByWith.length >  2) {
+                    	for(int i = 1; i < breakByWith.length-1 ;i++) {
+                    		subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ID(" + breakByWith[i+1].split("MATCH")[0].trim() + ")";
+                    		intermediateResult = processUseView(subCommand,intermediateResult);
+                    	}  
+                    	subCommand = "MATCH" + breakByWith[breakByWith.length-1].split("MATCH")[1];
+                    	String subBefore = subCommand.split("RETURN")[0];
+            			String subReturn = subCommand.split("RETURN")[1];
+            			for(Map.Entry<String,List<Integer>> entry : intermediateResult.entrySet()) {
+            				String paramName = entry.getKey();
+            				if(subBefore.contains("WHERE"))
+            					subBefore = subBefore + "AND " + paramName + " IN " + entry.getValue();
+            				else
+            					subBefore = subBefore + "WHERE " + paramName + " IN " + entry.getValue();
+            			}
+            			subCommand = subBefore + " RETURN " +subReturn;   
+            			intermediateResult = processUseView(subCommand,intermediateResult);
+                    }else
+                    	processUseView(subCommand);
                     //processUseViewMethod2(command);
 
                     long total = System.currentTimeMillis() - now;
@@ -750,18 +771,6 @@ public class Main {
                         if(breakByWith.length >  2) {
                         	for(int i = 1; i < breakByWith.length-1 ;i++) {
                         		subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ID(" + breakByWith[i+1].split("MATCH")[0].trim() + ")";
-//                        		if(intermediateResult.size() != 0){
-//                        			String subBefore = subCommand.split("RETURN")[0];
-//                        			String subReturn = subCommand.split("RETURN")[1];
-//                        			for(Map.Entry<String,List<Integer>> entry : intermediateResult.entrySet()) {
-//                        				String paramName = entry.getKey();
-//                        				if(subBefore.contains("WHERE"))
-//                        					subBefore = subBefore + "AND " + paramName + " IN " + entry.getValue();
-//                        				else
-//                        					subBefore = subBefore + "WHERE " + paramName + " IN " + entry.getValue();
-//                        			}
-//                        			subCommand = subBefore + "RETURN " +subReturn;                        			
-//                        		}
                         		intermediateResult = processUseView(subCommand,intermediateResult);
                         	}  
                         	subCommand = "MATCH" + breakByWith[breakByWith.length-1].split("MATCH")[1];
