@@ -348,12 +348,27 @@ public class Neo4jGraphConnector {
                 System.out.println("Took " + duration + " ms to execute transaction");
                 
                 now = System.currentTimeMillis();
-                Map<String, Object> row;
-                while (result.hasNext()) {
-                    // Mohanna: Changed here to not have object initialization in every loop
-                    row = result.next();
-                    numResults++;
+                while (result.hasNext())
+                {
+                    Map<String, Object> row = result.next();
+                                        
+                    for (Map.Entry<String, Object> column : row.entrySet())
+                    {
+                    	List<Integer> oneSet;
+                    	if(!nodeids.containsKey(column.getKey())) 
+                    		oneSet = new ArrayList<>();
+                        else
+                        	oneSet = nodeids.get(column.getKey());
+                    	List<Integer> elementToAdd = Arrays.asList(Integer.parseInt(column.getValue().toString()));
+                    	oneSet.add(Integer.parseInt(column.getValue().toString()));
+                        nodeids.put(column.getKey(), oneSet);
+                    }
                 }
+                //get rid of duplicates
+                for(Map.Entry<String,List<Integer>> entry: nodeids.entrySet()) {
+                	nodeids.put(entry.getKey(), new ArrayList<>(
+                		      new HashSet<>(entry.getValue())));
+                } 
                 
                 rows = rowsSB.toString();
                 duration = System.currentTimeMillis() - now;

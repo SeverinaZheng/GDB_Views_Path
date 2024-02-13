@@ -46,10 +46,10 @@ public class Main {
         try {
 
             // size could be set to any of the ["small", "medium", "large"]
-            String size = "small";
+            String dbName = "ldbc_sf01";
 
             // Getting the Connector object to Neo4j
-            connector = new Neo4jGraphConnector(size);
+            connector = new Neo4jGraphConnector(dbName);
             System.out.println(args.length);
             // TODO: The below two function calls should be removed [if not used]
             //loadTablesFromFiles(size);
@@ -764,13 +764,28 @@ public class Main {
                     } else if (vql.isViewUse()) {
                         long now = System.currentTimeMillis();
 
+                        String viewName = command.split(" ")[2];
                         // Break into multiple queries if containing "WITH"
                         String[] breakByWith = command.split("WITH");
+                        int partNum = breakByWith.length;
                         String subCommand = command;
                         HashMap<String,List<Integer>> intermediateResult = new HashMap<>();
-                        if(breakByWith.length >  2) {
+                        
+                        //if there is no MATCH within WITH, then no need to split
+                    	for(int i = breakByWith.length-1; i > 1  ;i--) {
+                    		if(!breakByWith[i].contains("IN "+ viewName))
+                    			partNum--;
+                    	} 
+                        
+                        if(partNum >  2) {
+                            //if enter here, really need to split
                         	for(int i = 1; i < breakByWith.length-1 ;i++) {
-                        		subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ID(" + breakByWith[i+1].split("MATCH")[0].trim() + ")";
+                        		subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ";
+                        		String[] returnVals = breakByWith[i+1].split("MATCH")[0].trim().split(",");
+                        		for(String returnVal : returnVals) {
+                        			subCommand += "ID(" +returnVal + "), "; 
+                        		}
+                        		subCommand = subCommand.substring(0,subCommand.length()-2);
                         		intermediateResult = processUseView(subCommand,intermediateResult);
                         	}  
                         	subCommand = "MATCH" + breakByWith[breakByWith.length-1].split("MATCH")[1];
@@ -779,9 +794,9 @@ public class Main {
                 			for(Map.Entry<String,List<Integer>> entry : intermediateResult.entrySet()) {
                 				String paramName = entry.getKey();
                 				if(subBefore.contains("WHERE"))
-                					subBefore = subBefore + "AND " + paramName + " IN " + entry.getValue();
+                					subBefore = subBefore + "AND ID(" + paramName + ") IN " + entry.getValue();
                 				else
-                					subBefore = subBefore + "WHERE " + paramName + " IN " + entry.getValue();
+                					subBefore = subBefore + "WHERE ID(" + paramName + ") IN " + entry.getValue();
                 			}
                 			subCommand = subBefore + " RETURN " +subReturn;   
                 			intermediateResult = processUseView(subCommand,intermediateResult);
@@ -888,7 +903,14 @@ public class Main {
 
         String returnSymbol = vql.getReturnValExpr();
         String mainQuery = fullQuery.split("RETURN")[0];
-        String returns = fullQuery.split("RETURN")[1].trim();
+        String returns;
+        String afterOrder = null;
+        if(!fullQuery.contains("ORDER"))
+        	returns = fullQuery.split("RETURN")[1].trim();
+        else {
+        	returns = fullQuery.split("RETURN")[1].trim().split("ORDER")[0];
+        	afterOrder = " ORDER " + fullQuery.split("RETURN")[1].trim().split("ORDER")[1];
+        }
 
         String[] returnArray = returns.split(",");
 
@@ -911,8 +933,10 @@ public class Main {
                 for(String retSym : returnSymbols) {
                     updateReturnClause = new StringBuilder(updateReturnClause.toString().replace(retSym, "ID("+retSym + ")"));
                 }
-                makeMiddlewareView = mainQuery + "RETURN DISTINCT " + updateReturnClause.toString();
-
+                if(afterOrder == null)
+                	makeMiddlewareView = mainQuery + "RETURN  DISTINCT " + updateReturnClause.toString();
+                else
+                	makeMiddlewareView = mainQuery + "RETURN " + updateReturnClause.toString() + afterOrder;
                 break;
             }
             case EDGE:{
@@ -1192,7 +1216,7 @@ public class Main {
     	}
         for(Entry<String,List<Integer>> entry: intermediateResult.entrySet()) {
     		params.put(entry.getKey(), entry.getValue());
-    		fullQuery = fullQuery.replace("WHERE", "WHERE "+ entry.getKey() + " IN $"+ entry.getKey() + " AND ");
+    		fullQuery = fullQuery.replace("WHERE", "WHERE ID("+ entry.getKey() + ") IN $"+ entry.getKey() + " AND ");
     	}
         
         // Only checking the path pattern correctness if the USE query itsels has a path pattern in it
@@ -1263,8 +1287,17 @@ public class Main {
                     for (String viewName : vql.addWhereClause.get(nodeName)) {
                     	if(!fullQuery.contains(nodeName)) continue;
 		            	String appendedToQuery = "";
-		            	List<List<Integer>> toIntersect = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
-		          		toIntersect = new ArrayList<>(new HashSet<>(toIntersect));
+		            	List<List<Integer>> toIntersect = null;
+		            	if(viewName.contains("."))
+		            			toIntersect = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
+		            	else {
+		            		HashMap<String,List<List<Integer>>> allIds = pathRelTable.get(viewName.split("\\.")[0]);
+		            		List<List<Integer>> ids = new ArrayList<>();
+	                    	for(Entry<String,List<List<Integer>>> entry: allIds.entrySet()) {
+	                    		ids.addAll(entry.getValue());
+	                    	}
+		            	}
+		            	toIntersect = new ArrayList<>(new HashSet<>(toIntersect));
 		            	List<Integer> sampleRlist = toIntersect.get(0);
 		               	edgeNum = sampleRlist.size();
 		          		String pathTarget = nodeName +" IN " + viewName;
@@ -1321,7 +1354,7 @@ public class Main {
 
         long now = System.currentTimeMillis();
 
-        String fullQuery = "MATCH " + cmd.split("MATCH")[1];
+        String fullQuery = cmd.substring(cmd.indexOf("MATCH"));
         //next three data structure are only for path view usage
         List<List<Integer>> rlist = new ArrayList<>();
         Map<String, Object> params = new HashMap<>();
@@ -1391,13 +1424,15 @@ public class Main {
                            	}else if (vql.relationSymbols().contains(nodeName)){
                            		allIds = edgeTable.get(viewName.split("\\.")[0]);
                            	}
-                            	
-                           	for(Entry<String,List<Integer>> entry: allIds.entrySet()) {
-                           		ids.addAll(entry.getValue());
+                           
+                           	if(allIds != null) {
+	                           	for(Entry<String,List<Integer>> entry: allIds.entrySet()) {
+	                           		ids.addAll(entry.getValue());
+	                           	}
+	                       		idMap.put(viewName.split("\\.")[0], ids);
+	                       		replacement = "ID(" + nodeName + ") IN $" + viewName.split("\\.")[0];
+	                     		fullQuery = fullQuery.replace(target, replacement);
                            	}
-                       		idMap.put(viewName.split("\\.")[0], ids);
-                       		replacement = "ID(" + nodeName + ") IN $" + viewName.split("\\.")[0];
-                     		fullQuery = fullQuery.replace(target, replacement);
                         }
                             //fullQuery = "UNWIND $"+" AS elements " + fullQuery.replace(target, replacement);
 
@@ -1447,14 +1482,18 @@ public class Main {
                     		System.out.println("No such item in the view");
                     		
                     } else {
-                    	HashMap<String,List<Integer>> allIds = nodeTable.get(viewName.split("\\.")[0]);
-                    	List<Integer> ids = new ArrayList<>();
-                    	for(Entry<String,List<Integer>> entry: allIds.entrySet()) {
-                    		ids.addAll(entry.getValue());
+                    	if(vql.nodeSymbols().contains(nodeName)){
+                    		HashMap<String,List<Integer>> allIds = nodeTable.get(viewName.split("\\.")[0]);
+                        	List<Integer> ids = new ArrayList<>();
+                        	if(allIds != null) {
+                        		for(Entry<String,List<Integer>> entry: allIds.entrySet()) {
+                            		ids.addAll(entry.getValue());
+                            	}
+                        		idMap.put(viewName.split("\\.")[0], ids);
+                            	replacement = "ID(" + nodeName + ") IN $" + viewName.split("\\.")[0];
+                            	fullQuery = fullQuery.replace(target, replacement);
+                        	}
                     	}
-                		idMap.put(viewName.split("\\.")[0], ids);
-                    	replacement = "ID(" + nodeName + ") IN $" + viewName.split("\\.")[0];
-                    	fullQuery = fullQuery.replace(target, replacement);
                     }
                 }
             }
@@ -1546,7 +1585,15 @@ public class Main {
                     for (String viewName : vql.addWhereClause.get(nodeName)) {
                     	if(!fullQuery.contains(nodeName)) continue;
 		            	String appendedToQuery = "";
-		            	List<List<Integer>> toIntersect = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
+		            	List<List<Integer>> toIntersect = new ArrayList<>();
+		            	if(viewName.contains("."))
+	            			toIntersect = pathRelTable.get(viewName.split("\\.")[0]).get(viewName.split("\\.")[1]);
+	            	else {
+	            		HashMap<String,List<List<Integer>>> allIds = pathRelTable.get(viewName.split("\\.")[0]);
+                    	for(Entry<String,List<List<Integer>>> entry: allIds.entrySet()) {
+                    		toIntersect.addAll(entry.getValue());
+                    	}
+	            	}
 		          		toIntersect = new ArrayList<>(new HashSet<>(toIntersect));
 		            	List<Integer> sampleRlist = toIntersect.get(0);
 		               	edgeNum = sampleRlist.size();
@@ -1557,12 +1604,25 @@ public class Main {
 		          			String afterEdge = fullQuery.substring(fullQuery.indexOf(beforeEdge)+beforeEdge.length()+2);
 		          			subQuery = afterEdge;
 		          			if(i % 2 == 0)continue;
-		          			fullQuery = fullQuery.substring(0,fullQuery.indexOf(beforeEdge)+beforeEdge.length()) + "-[r" + i + afterEdge;
-		          			pathReplacement += "ID(r" + i + ") = edges["+ (i-1)/2 + "] AND ";
+		          			if(afterEdge.startsWith(":")){
+		          				//there is no name to the edge
+		          				fullQuery = fullQuery.substring(0,fullQuery.indexOf(beforeEdge)+beforeEdge.length()) + "-[r" + i + afterEdge;
+			          			pathReplacement += "ID(r" + i + ") = edges["+ (i-1)/2 + "] AND ";
+		          			}else{
+		          				String thisEdge = afterEdge.split("]")[0];
+		          				if(thisEdge.contains(":")){
+		          					String edgeName = afterEdge.split(":")[0];
+				          			pathReplacement += "ID(" + edgeName + ") = edges["+ (i-1)/2 + "] AND ";
+		          				}else {
+		          					pathReplacement += "ID(" + thisEdge + ") = edges["+ (i-1)/2 + "] AND ";
+		          				}
+		          				
+		          			}
+		          			
 		          			
 			           	}
 		          		fullQuery = fullQuery.replace(pathTarget, pathReplacement.substring(0,pathReplacement.length() - 5));
-			           	if(!fullQuery.contains("DISTINCT"))
+			           	if(!fullQuery.contains("DISTINCT") && !fullQuery.contains("ORDER BY"))
 			           		newQuery ="UNWIND $edges AS edges " + fullQuery.replace("RETURN", " RETURN DISTINCT");
 			           	else
 			           		newQuery ="UNWIND $edges AS edges " + fullQuery;
@@ -1618,7 +1678,8 @@ public class Main {
        	 	params.put("edges",rlist);
        	 	Result result = connector.executeWithParam(fullQuery,params,tx);  
 	       	while (result.hasNext()){
-	            row = result.next();         
+	            row = result.next();   
+	            numResults ++;
 	            for (Map.Entry<String, Object> column : row.entrySet()){
 	            	String key = column.getKey();
 	            	if(column.getKey().contains("("))
@@ -1633,7 +1694,8 @@ public class Main {
 	             	oneSet.add(Integer.parseInt(column.getValue().toString()));
 	                nodeids.put(key, oneSet);
 	             	}catch(Exception e) {
-	             		return new HashMap<String,List<Integer>>();
+	             		continue;
+	             		//return new HashMap<String,List<Integer>>();
 	             	}
 	             }
 	         }
@@ -1649,6 +1711,7 @@ public class Main {
        	rows = rowsSB.toString();
        	long duration = System.currentTimeMillis() - start;
 
+       	System.out.println("num Results : " + numResults);
         return nodeids;
     }
     

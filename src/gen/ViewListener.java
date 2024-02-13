@@ -68,6 +68,16 @@ public interface ViewListener extends ParseTreeListener {
 	 */
 	void exitReplacements(ViewParser.ReplacementsContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link ViewParser#caseCondition}.
+	 * @param ctx the parse tree
+	 */
+	void enterCaseCondition(ViewParser.CaseConditionContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#caseCondition}.
+	 * @param ctx the parse tree
+	 */
+	void exitCaseCondition(ViewParser.CaseConditionContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link ViewParser#iteration}.
 	 * @param ctx the parse tree
 	 */
@@ -197,6 +207,46 @@ public interface ViewListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitRetval(ViewParser.RetvalContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link ViewParser#orderstmt}.
+	 * @param ctx the parse tree
+	 */
+	void enterOrderstmt(ViewParser.OrderstmtContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#orderstmt}.
+	 * @param ctx the parse tree
+	 */
+	void exitOrderstmt(ViewParser.OrderstmtContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link ViewParser#orderItem}.
+	 * @param ctx the parse tree
+	 */
+	void enterOrderItem(ViewParser.OrderItemContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#orderItem}.
+	 * @param ctx the parse tree
+	 */
+	void exitOrderItem(ViewParser.OrderItemContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link ViewParser#order}.
+	 * @param ctx the parse tree
+	 */
+	void enterOrder(ViewParser.OrderContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#order}.
+	 * @param ctx the parse tree
+	 */
+	void exitOrder(ViewParser.OrderContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link ViewParser#limitstmt}.
+	 * @param ctx the parse tree
+	 */
+	void enterLimitstmt(ViewParser.LimitstmtContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#limitstmt}.
+	 * @param ctx the parse tree
+	 */
+	void exitLimitstmt(ViewParser.LimitstmtContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link ViewParser#expr}.
 	 * @param ctx the parse tree

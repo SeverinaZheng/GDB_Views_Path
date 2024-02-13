@@ -891,9 +891,8 @@ public class QueryParser extends ViewBaseListener {
             }
 
             //ignoring the "not ctx" cases
-            if(ctx.getText().toLowerCase().startsWith("not ")) return;
-
-
+            if(ctx.getText().toLowerCase().startsWith("not")) return;
+            String sf =ctx.getText().toLowerCase();
             ParseTree child1 = ctx.getChild(0);
             ParseTree child2 = ctx.getChild(2);
 
@@ -933,7 +932,6 @@ public class QueryParser extends ViewBaseListener {
                     String attributeInvolved = attributeParse(actx);
 
                     String rhsKey = attributeInvolved.split("\\.")[0];
-                    String rhsAttribute = attributeInvolved.split("\\.")[1];
 
                     //a.name = b.bio
                     //x.name > y.name
@@ -942,12 +940,14 @@ public class QueryParser extends ViewBaseListener {
                     if(!alwaysReevaluate.containsKey(varLabels.get(keyname))) alwaysReevaluate.put(varLabels.get(keyname), new SetTuple<>(viewName,new HashSet<>()));
                     if(!alwaysReevaluate.containsKey(varLabels.get(rhsKey))) alwaysReevaluate.put(varLabels.get(rhsKey), new SetTuple<>(viewName,new HashSet<>()));
 
+                    if(attributeInvolved.contains(".")) {
+                        String rhsAttribute = attributeInvolved.split("\\.")[1];
+                        if(!alwaysReevaluate.get(varLabels.get(keyname)).y.contains(attributename)) alwaysReevaluate.get(varLabels.get(keyname)).y.add(attributename);
+                        if(!alwaysReevaluate.get(varLabels.get(rhsKey)).y.contains(rhsAttribute)) alwaysReevaluate.get(varLabels.get(rhsKey)).y.add(rhsAttribute);
+                    }
+                    
 
-                    if(!alwaysReevaluate.get(varLabels.get(keyname)).y.contains(attributename)) alwaysReevaluate.get(varLabels.get(keyname)).y.add(attributename);
-                    if(!alwaysReevaluate.get(varLabels.get(rhsKey)).y.contains(rhsAttribute)) alwaysReevaluate.get(varLabels.get(rhsKey)).y.add(rhsAttribute);
-
-
-                    System.out.println("ckqpt" + varLabels.get(keyname) + ", " + attributename + "\n" + varLabels.get(rhsKey) + ", " + rhsAttribute);
+                    //System.out.println("ckqpt" + varLabels.get(keyname) + ", " + attributename + "\n" + varLabels.get(rhsKey) + ", " + rhsAttribute);
 
                 }
 

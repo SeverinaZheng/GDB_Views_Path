@@ -7,8 +7,8 @@ root : COMMAND NAME viewuse scope query |
         ;
 scope: 'LOCAL' | 'GLOBAL' |;
 
-query :  KEYWORD expr conditions pipeline? returnstmt |
-         KEYWORD pathExp conditions pipeline? returnstmt
+query :  KEYWORD expr conditions? pipeline? returnstmt orderstmt? limitstmt?|
+         KEYWORD pathExp conditions? pipeline? returnstmt orderstmt? limitstmt?
         ;
 
 changegraph : KEYWORD expr conditions 'SET' setattr
@@ -18,14 +18,19 @@ changegraph : KEYWORD expr conditions 'SET' setattr
             | 'CREATE' insertion
 ;
 
-pipeline    : 'WITH' replacements pipeconditions | 'WITH' replacements pipeconditions pipeline
+pipeline    : 'WITH' replacements pipeconditions | 'WITH' replacements pipeconditions pipeline|
+			  'WITH' replacements (pipeline)* | KEYWORD expr conditions? pipeline? 
+			  |KEYWORD pathExp conditions? pipeline?
 ;
 
-replacements : NAME as NAME (',' replacements) |
+replacements : NAME as NAME (',' replacements) |attribute as attribute  (',' replacements) |
                function as NAME (',' replacements) |
-               NAME (',' replacements) |NAME as NAME | function as NAME | NAME |
-               iteration as NAME (',' replacements) | iteration as NAME 
+               NAME (',' replacements)* |NAME as NAME | function as NAME | NAME |
+               iteration as NAME (',' replacements) | iteration as NAME |
+               caseCondition as NAME (',' replacements)*
 ;
+
+caseCondition: 'CASE WHEN' boolexpr 'THEN' val 'ELSE' val 'END';
 
 iteration : '[' NAME 'IN' range '(' validVal ',' validVal ')' '|'  iterationCase ']'
 ;
@@ -47,10 +52,13 @@ pipeexpr    : attribute COMPARISON attribute |
               function COMPARISON attribute |
               function COMPARISON val |
               function '=' attribute |
-              function '=' val
+              function '=' val|
+              pipeexpr 'AND' pipeexpr |
+              pipeexpr 'OR' pipeexpr
 ;
 
-function : 'COLLECT(' NAME ')' | 'UNWIND' NAME | 'COUNT(' NAME ')' | 'COUNT(*)' | 'MAX('NAME')';
+function : 'COLLECT(' function ')' | 'UNWIND' function | 'COUNT(' function ')' | 'COUNT(*)' | 'MAX('function')' 
+			| 'toInteger('function')' | 'ID('function')' | 'SUM('function')' | NAME;
 
 viewuse  : 'WITH VIEWS' usedviews | ;
 usedviews : NAME*;
@@ -76,10 +84,16 @@ viewatom : variable | // for early version, this line was '(' NAME ':' MNAME ')'
              ;
 returnstmt : RETURN retval (',' retval)*;
 retval : 'NODES(' NAME ')' |
-         attribute
+         attribute | function (as NAME)?
          ;
+         
+orderstmt: 'ORDER BY' ;
+orderItem: attribute order (','orderItem)* | function order (','orderItem)* ;
+order: 'DESC' | 'ASC';
 
-expr : viewatom | '*';
+limitstmt: 'LIMIT' VALUE;
+
+expr : viewatom (',' expr)* | '*' ;
 variable :  '('nodeName')' | '('nodeName':'type')' | '()'; // nodeName
 type    : NAME ;
 nodeName : NAME ;
@@ -94,17 +108,22 @@ path  :   NAME '=' expr ;
 conditions  : 'WHERE' boolexpr | ;
 boolexpr    :
               attribute COMPARISON attribute |
-              attribute COMPARISON val |
+              attribute COMPARISON val|
+              val COMPARISON attribute (COMPARISON val)? |
               attribute '=' attribute |
               attribute '=' val |
               boolexpr 'AND' boolexpr |
               boolexpr 'OR' boolexpr |
               VALUE OPERATOR attribute | //not supported
               NAME 'IN' NAME('.'NAME)? | //viewUse: only get one instance of return value
+              function 'IN' NAME('.'NAME)? |
               '(' boolexpr ')' |
               'not' boolexpr |
               'NOT' boolexpr |
-              exists '(' attribute ')';
+              exists '(' attribute ')'|
+              function '=' attribute |
+              function '=' val |
+              attribute 'STARTS WITH' VALUE;
 attribute   : NAME('.'NAME)?  | val arithmetic attribute | attribute arithmetic val | indexing;
 val         : VALUE | NAME | CONSTANTS;
 
@@ -136,10 +155,10 @@ exists : 'EXISTS' | 'exists';
 Lexer rules
 */
 
-KEYWORD   : 'MATCH' | 'MERGE' ;
+KEYWORD   : 'MATCH' | 'MERGE' |'OPTIONAL MATCH';
 RETURN  : 'RETURN' ;
 COMMAND : 'CREATE VIEW AS';
-COMPARISON : '>' | '<' | '>=' |'<=' ;
+COMPARISON : '>' | '<' | '>=' |'<=' |'=';
 OPERATOR : 'CASE'|'CONTAINS'|'ELSE'|'END'|
            'ENDS WITH'|'IN'|'IS NOT NULL'|'IS NULL'|'NOT'|'STARTS WITH'|'THEN'|'WHEN'|'XOR';
 CONSTANTS : 'true' | 'false' | 'null';
