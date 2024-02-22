@@ -40,6 +40,7 @@ public class Main {
 
     public static Neo4jGraphConnector connector;
     public static long totalTime = 0;
+    public static FileWriter myWriter;
 
     public static void main(String[] args){
 
@@ -56,28 +57,37 @@ public class Main {
             //createMetaInfoFromQueries("./test/initFileExample.txt");
 
             // Check if any inputs are given [This is to facilitate running long tests]
-            
+
             // Running commands of a file without clearing the cache
+            try{
+                myWriter = new FileWriter("~/GDB_Views_Path/test/ldbc/time.txt");
+            } catch (IOException e) {
+                System.out.println("An error occurred.");
+                e.printStackTrace();
+            }
             if (args.length == 1) {
                 String fileName = args[0];
                 ArrayList<String> commands_in_order = getExperimentCommands(fileName);
-
-                // NOTE: Need to set this per experiment: Setting System.out to a file for easier processing
-                //PrintStream o = new PrintStream(new File("./test/view_use/baseline/outputs/global/warm_medium_new.txt"));
-        
-                //PrintStream console = System.out;
-        
-                //System.setOut(o);
- 
-                for (String cmd: commands_in_order) {
-                    if (cmd.equals("quit")) {
-                        break;
-                    }
-                    else {
+                if(fileName.contains("baseline")){
+                    for (String cmd: commands_in_order) {
                         System.out.println(cmd);
-                        experiment_terminal(cmd);
-                        System.out.println("*********************************");
-          
+                        connector.executeDirectly(cmd);
+                    }
+                }else{
+                    // NOTE: Need to set this per experiment: Setting System.out to a file for easier processing
+                    //PrintStream o = new PrintStream(new File("./test/view_use/baseline/outputs/global/warm_medium_new.txt"));
+                    //PrintStream console = System.out;
+                    //System.setOut(o);
+
+                    for (String cmd: commands_in_order) {
+                        if (cmd.equals("quit")) {
+                            break;
+                        }
+                        else {
+                            System.out.println(cmd);
+                            experiment_terminal(cmd);
+                            System.out.println("*********************************");
+                        }
                     }
                 }
             } else if (args.length == 2 && args[0].equals("cold")) {
@@ -91,7 +101,7 @@ public class Main {
             } else if (args.length == 2 && (args[0].equals("method1") || args[0].equals("method2"))) {
                 String fileName = args[1];
                 ArrayList<String> commands_in_order = getExperimentCommands(fileName);
- 
+
                 for (String cmd: commands_in_order) {
                     if (cmd.equals("quit")) {
                         break;
@@ -104,9 +114,9 @@ public class Main {
                 }
             } else if (args.length == 2 && args[0].equals("cold_use")) {
                 PrintStream o = new PrintStream(new File("./test/tmp.txt"));
-        
+
                 PrintStream console = System.out;
-        
+
                 // Sending create log stuff to a tmp file
                 System.setOut(o);
 
@@ -135,9 +145,9 @@ public class Main {
                 experiment_terminal(cmd);
             } else if (args.length == 2 && args[0].equals("cold_use_old")) {
                 PrintStream o = new PrintStream(new File("./test/tmp.txt"));
-        
+
                 PrintStream console = System.out;
-        
+
                 // Sending create log stuff to a tmp file
                 System.setOut(o);
 
@@ -209,7 +219,7 @@ public class Main {
                 vql.printOrClauseViews();
             } else if (command.startsWith("printDependencies")) {
                 vql.printDependencies();
-          
+
             } else if (command.startsWith("printNode")) {
                 System.out.println(nodeTable.toString());
             } else if (command.startsWith("clear")) {
@@ -265,15 +275,15 @@ public class Main {
                     String rewritten_query = "";
                     long start, duration;
                     int querySize;
-                    
+
                     if (type.equals("PATH")) {
                         // Rewrite for path views
                         // TODO: Should a basic match also considers the edges?                             
                         // For returning both nodes and edges in a path query uncomment the line below
                         //rewritten_query = viewQueryTable.get(viewname) + " WITH nodes(" + viewReturnVarTable.get(viewname) + ") AS no, relationships(" + viewReturnVarTable.get(viewname) + ") AS re WITH [node in no | id(node)] AS nodeids, [rel in re | id(rel)] AS edgeids MATCH (n) WHERE ID(n) IN nodeids MATCH ()-[r]-() WHERE ID(r) IN edgeids RETURN n,r";
-                        
+
                         // Just getting the nodes in a path query
-                        
+
                         rewritten_query = createPathQueryNonMaterializedTerm(viewQueryTable.get(viewname)) + " AS v MATCH (n) WHERE ID(n) IN v RETURN n";
                         System.out.println(rewritten_query);
 
@@ -288,12 +298,12 @@ public class Main {
                         start = System.currentTimeMillis();
                         querySize = connector.excuteBaselineQuery(rewritten_query);
                         duration = System.currentTimeMillis() - start;
-                    }                    
+                    }
 
                     System.out.println("Took " + duration + " ms to execute query");
                     System.out.println("Non-materialized returned " + querySize + " elements");
-                } 
-                
+                }
+
                 // Case for Basic Complex Processing
                 else if (command.contains("LOCAL COMPLEX")) {
                     // This is a manual process for non-materialized use queries with only 2 views and a local context 
@@ -314,12 +324,12 @@ public class Main {
 
                         start = System.currentTimeMillis();
                         querySize = connector.excuteBaselineQuery(rewritten_query);
-                        duration = System.currentTimeMillis() - start;                   
+                        duration = System.currentTimeMillis() - start;
 
                         System.out.println("Took " + duration + " ms to execute baseline query");
                         System.out.println("Non-materialized returned " + querySize + " elements");
-                    } 
-                    
+                    }
+
                     else if (first_type.equals("PATH") && second_type.equals("PATH")) {
                         System.out.println("Both PATH");
 
@@ -328,7 +338,7 @@ public class Main {
 
                         rewritten_query = firstPathQueryTerm + " AS v1 \n" + secondPathQueryTerm + " AS v2, v1 \n"+
                             "WITH [node IN v1 WHERE node IN v2] AS commonNodes MATCH (res) WHERE ID(res) IN commonNodes RETURN res";
-                        
+
                         System.out.println(rewritten_query);
 
                         start = System.currentTimeMillis();
@@ -338,19 +348,19 @@ public class Main {
                         System.out.println("Took " + duration + " ms to execute baseline query");
                         System.out.println("Non-materialized returned " + querySize + " elements");
 
-                    } 
-                    
+                    }
+
                     else if (first_type.equals("PATH")) {
                         // First one is path but second one is node
                         System.out.println("First PATH - Second NODE");
 
                         String pathQueryTerm = createPathQueryNonMaterializedTerm(viewQueryTable.get(first_view));
 
-                        rewritten_query =  pathQueryTerm + " AS v1 \n" + 
-                            viewQueryTable.get(second_view) + " WITH COLLECT(DISTINCT ID(" + viewReturnVarTable.get(second_view) + ")) AS v2, v1 \n" + 
-          
+                        rewritten_query =  pathQueryTerm + " AS v1 \n" +
+                            viewQueryTable.get(second_view) + " WITH COLLECT(DISTINCT ID(" + viewReturnVarTable.get(second_view) + ")) AS v2, v1 \n" +
+
                             "WITH [node IN v1 WHERE node IN v2] AS commonNodes MATCH (res) WHERE ID(res) IN commonNodes RETURN res";
-                        
+
                         System.out.println(rewritten_query);
 
                         start = System.currentTimeMillis();
@@ -359,17 +369,17 @@ public class Main {
 
                         System.out.println("Took " + duration + " ms to execute baseline query");
                         System.out.println("Non-materialized returned " + querySize + " elements");
-                    } 
-                    
+                    }
+
                     else if (second_type.equals("PATH")) {
                         // First one is node but second one is path
                         System.out.println("First NODE - Second PATH");
-                        
+
                         String pathQueryTerm = createPathQueryNonMaterializedTerm(viewQueryTable.get(second_view));
 
                         rewritten_query = viewQueryTable.get(first_view) + " WITH COLLECT(DISTINCT ID(" + viewReturnVarTable.get(first_view) + ")) AS v1 \n" +
-                        pathQueryTerm + " AS v2, v1 \n WITH [node IN v1 WHERE node IN v2] AS commonNodes MATCH (res) WHERE ID(res) IN commonNodes RETURN res"; 
-                        
+                        pathQueryTerm + " AS v2, v1 \n WITH [node IN v1 WHERE node IN v2] AS commonNodes MATCH (res) WHERE ID(res) IN commonNodes RETURN res";
+
                         System.out.println(rewritten_query);
 
                         start = System.currentTimeMillis();
@@ -403,17 +413,17 @@ public class Main {
                     for(String v : views) {
                         if (typeTable.get(v).equals("NODE")) {
                             if (counter == 0) {
-                                view_sub_queries[counter] = viewQueryTable.get(v) + " WITH COLLECT(DISTINCT ID(" + viewReturnVarTable.get(v) + 
+                                view_sub_queries[counter] = viewQueryTable.get(v) + " WITH COLLECT(DISTINCT ID(" + viewReturnVarTable.get(v) +
                                     ")) AS " + v + "\n";
                             } else {
-                                view_sub_queries[counter] = viewQueryTable.get(v) + " WITH " + nonMaterializedIntermediateWithClause(v, views) + 
+                                view_sub_queries[counter] = viewQueryTable.get(v) + " WITH " + nonMaterializedIntermediateWithClause(v, views) +
                                     " COLLECT(DISTINCT ID(" + viewReturnVarTable.get(v) + ")) AS " + v + "\n";
                             }
                         } else if (typeTable.get(v).equals("PATH")) {
                             if (counter == 0) {
                                 view_sub_queries[counter] = createPathQueryNonMaterializedTerm(viewQueryTable.get(v)) + " AS " + v + "\n";
                             } else {
-                                view_sub_queries[counter] = createPathQueryNonMaterializedTerm(viewQueryTable.get(v)) + 
+                                view_sub_queries[counter] = createPathQueryNonMaterializedTerm(viewQueryTable.get(v)) +
                                         " AS " + v + "," + nonMaterializedIntermediateWithClause(v, views) +  "\n";
                             }
                         }
@@ -441,48 +451,63 @@ public class Main {
                 }
 
             } else {
-
                 // Break up the input stream of characters into vocabulary symbols for a parser
                 ViewLexer VL = new ViewLexer(CharStreams.fromString(command));
-
                 CommonTokenStream tokens = new CommonTokenStream(VL);
-                ViewParser parser = new ViewParser(tokens); 
+                ViewParser parser = new ViewParser(tokens);
+
                 ParseTree tree = parser.root();
                 walker.walk(vql, tree);
 
                 if (vql.isViewInstant()) {
                     long now = System.currentTimeMillis();
-                    // Mohanna: Changed for testing for now 
+                    // Changed temporarily
                     processMainView(command, materialized);
                     //processMainViewMethod1(command, materialized);
+
                     long total = System.currentTimeMillis() - now;
                     System.out.println("Took " + total + "ms to create views");
                 } else if (vql.isViewUse()) {
-                	long now = System.currentTimeMillis();
+                    long now = System.currentTimeMillis();
 
+                    String viewName = command.split(" ")[2];
                     // Break into multiple queries if containing "WITH"
                     String[] breakByWith = command.split("WITH");
+                    int partNum = breakByWith.length;
                     String subCommand = command;
                     HashMap<String,List<Integer>> intermediateResult = new HashMap<>();
-                    if(breakByWith.length >  2) {
-                    	for(int i = 1; i < breakByWith.length-1 ;i++) {
-                    		subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ID(" + breakByWith[i+1].split("MATCH")[0].trim() + ")";
-                    		intermediateResult = processUseView(subCommand,intermediateResult);
-                    	}  
-                    	subCommand = "MATCH" + breakByWith[breakByWith.length-1].split("MATCH")[1];
-                    	String subBefore = subCommand.split("RETURN")[0];
-            			String subReturn = subCommand.split("RETURN")[1];
-            			for(Map.Entry<String,List<Integer>> entry : intermediateResult.entrySet()) {
-            				String paramName = entry.getKey();
-            				if(subBefore.contains("WHERE"))
-            					subBefore = subBefore + "AND " + paramName + " IN " + entry.getValue();
-            				else
-            					subBefore = subBefore + "WHERE " + paramName + " IN " + entry.getValue();
-            			}
-            			subCommand = subBefore + " RETURN " +subReturn;   
-            			intermediateResult = processUseView(subCommand,intermediateResult);
+
+                    //if there is no MATCH within WITH, then no need to split
+                    for(int i = breakByWith.length-1; i > 1  ;i--) {
+                        if(!breakByWith[i].contains("IN "+ viewName))
+                            partNum--;
+                    }
+
+                    if(partNum >  2) {
+                        //if enter here, really need to split
+                        for(int i = 1; i < breakByWith.length-1 ;i++) {
+                            subCommand = "MATCH" + breakByWith[i].split("MATCH")[1]+"RETURN DISTINCT ";
+                            String[] returnVals = breakByWith[i+1].split("MATCH")[0].trim().split(",");
+                            for(String returnVal : returnVals) {
+                                subCommand += "ID(" +returnVal + "), ";
+                            }
+                            subCommand = subCommand.substring(0,subCommand.length()-2);
+                            intermediateResult = processUseView(subCommand,intermediateResult);
+                        }
+                        subCommand = "MATCH" + breakByWith[breakByWith.length-1].split("MATCH")[1];
+                        String subBefore = subCommand.split("RETURN")[0];
+                        String subReturn = subCommand.split("RETURN")[1];
+                        for(Map.Entry<String,List<Integer>> entry : intermediateResult.entrySet()) {
+                            String paramName = entry.getKey();
+                            if(subBefore.contains("WHERE"))
+                                subBefore = subBefore + "AND ID(" + paramName + ") IN " + entry.getValue();
+                            else
+                                subBefore = subBefore + "WHERE ID(" + paramName + ") IN " + entry.getValue();
+                        }
+                        subCommand = subBefore + " RETURN " +subReturn;
+                        intermediateResult = processUseView(subCommand,intermediateResult);
                     }else
-                    	processUseView(subCommand);
+                        processUseView(subCommand);
                     //processUseViewMethod2(command);
 
                     long total = System.currentTimeMillis() - now;
@@ -1296,6 +1321,7 @@ public class Main {
 	                    	for(Entry<String,List<List<Integer>>> entry: allIds.entrySet()) {
 	                    		ids.addAll(entry.getValue());
 	                    	}
+                            toIntersect = ids;
 		            	}
 		            	toIntersect = new ArrayList<>(new HashSet<>(toIntersect));
 		            	List<Integer> sampleRlist = toIntersect.get(0);

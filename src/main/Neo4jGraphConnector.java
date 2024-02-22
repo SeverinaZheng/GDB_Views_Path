@@ -399,8 +399,6 @@ public class Neo4jGraphConnector {
 
     public static Result executeWithParam(String query, Map<String, Object> params,Transaction tx) {
     	Result  result = tx.execute(query, params);
-
-        
     	return result;
     }
     

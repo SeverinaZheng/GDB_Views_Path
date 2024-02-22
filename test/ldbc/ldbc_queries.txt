@@ -108,13 +108,8 @@ ORDER BY
     forum.id ASC
 LIMIT 20
 
-CREATE VIEW V5 MATCH (person:Person)-[:KNOWS*1..2]-(friend)
-WHERE ID(person) = $personId 
-    AND NOT person=friend
-WITH DISTINCT friend
-MATCH p = (friend)<-[membership:HAS_MEMBER]-(forum) RETURN p
-
-WITH VIEW V5 LOCAL MATCH p = ()<-[membership]-() WHERE membership.joinDate > 1322000000000 RETURN p
+CREATE VIEW AS V_IC5 MATCH (person:Person)-[:KNOWS*1..2]-(friend) WHERE ID(person) = 11220 AND NOT person=friend RETURN friend
+WITH VIEWS V_IC5 GLOBAL MATCH (friend:Person)<-[membership:HAS_MEMBER]-(forum) WHERE friend IN V_IC5 AND membership.joinDate > 1322000000000 WITH forum, COLLECT(friend) AS friends OPTIONAL MATCH (friend)<-[:HAS_CREATOR]-(post)<-[:CONTAINER_OF]-(forum) WHERE friend IN friends WITH forum, COUNT(post) AS postCount RETURN forum.title AS forumName, postCount ORDER BY postCount DESC, ID(forum) ASC LIMIT 20
 
 //IC 6 ---NODE
 :param [{ personId, tagName }] => { RETURN
@@ -307,8 +302,8 @@ WITH VIEW V4 MATCH (n) WHERE n IN V4 RETURN n
 :param messageId: 1067
 MATCH (m:Message)-[:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN p
 
-CREATE VIEW V5 MATCH (m:Message)-[r1:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN r1
-WITH VIEW V5 MATCH ()-[r1]-() WHERE r1 IN V4 RETURN n
+CREATE VIEW AS V_IS5 MATCH (m:Message)-[r1:HAS_CREATOR]->(p:Person) WHERE ID(m) = 1067 RETURN p
+WITH VIEWS V_IS5 LOCAL MATCH (n) WHERE n IN V_IS5 RETURN n
 
 //IS6---PATH 
 :param messageId: 23424
@@ -341,14 +336,5 @@ WHERE ID(m) = $messageId
         END AS replyAuthorKnowsOriginalMessageAuthor
     ORDER BY commentCreationDate DESC, replyAuthorId
     
-CREATE VIEW V7 MATCH (m:Message)<-[:REPLY_OF]-(c:Comment)-[:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN m, p
-WITH VIEW V7 GLOBAL MATCH (m)-[:HAS_CREATOR]->(a:Person)-[r:KNOWS]-(p) WHERE m IN V7.m AND p IN V7.p
-    RETURN ID(p) AS replyAuthorId,
-        p.firstName AS replyAuthorFirstName,
-        p.lastName AS replyAuthorLastName,
-        CASE r
-            WHEN null THEN false
-            ELSE true
-        END AS replyAuthorKnowsOriginalMessageAuthor
-    ORDER BY replyAuthorId
-
+CREATE VIEW AS V_IS7 MATCH (m:Message)<-[r1:REPLY_OF]-(c:Comment)-[r2:HAS_CREATOR]->(p:Person) WHERE ID(m) = 266346 OPTIONAL MATCH p1=(m)-[:HAS_CREATOR]->(a:Person)-[r:KNOWS]-(p)<-[r2]-(c)-[r1]->(m) RETURN p1
+WITH VIEWS V_IS7 LOCAL MATCH p=(m)-[:HAS_CREATOR]->(a:Person)-[r:KNOWS]-(reply)<-[r2]-(c)-[r3]->(m) WHERE p IN V_IS7.p1 RETURN ID(reply) AS replyAuthorId,reply.firstName AS
