@@ -255,8 +255,11 @@
       <root url="jar://$PROJECT_DIR$/lib2/neo4j-import-util-5.3.0.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib2/neo4j-capabilities-5.3.0.jar!/" />
       <root url="jar://$PROJECT_DIR$/lib2/neo4j-cypher-logical-plans-5.3.0.jar!/" />
+      <root url="jar://$PROJECT_DIR$/lib2/apoc-5.3.0-core.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="jar://$PROJECT_DIR$/lib2/apoc-5.3.0-core.jar!/codegen/templates" />
+    </SOURCES>
   </library>
 </component>

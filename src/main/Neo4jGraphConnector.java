@@ -399,8 +399,6 @@ public class Neo4jGraphConnector {
 
     public static Result executeWithParam(String query, Map<String, Object> params,Transaction tx) {
     	Result  result = tx.execute(query, params);
-
-        
     	return result;
     }
     
@@ -431,15 +429,71 @@ public class Neo4jGraphConnector {
 
         return result;
     }
-    public void executeDirectly(String query) {
-    	try( Transaction tx = db.beginTx()) {
+
+
+	public void executeDirectly(String query, FileWriter myWriter) {
+    	   try( Transaction tx = db.beginTx()) {
+		   if(query.equals("MATCH (s) where 'V1' IN s.viewname RETURN COUNT(s)"))
+			   tx.execute("CREATE TEXT INDEX v1Index FOR (s:Person) ON (s.viewname)");
+		//tx.execute("CREATE TEXT INDEX browserUsed_index FOR (n:Message) ON (n.browserUsed)");
+		//tx.execute("CREATE TEXT INDEX gender_index FOR (s:Person) ON (s.gender)");
+		//tx.execute("CREATE TEXT INDEX creationDate_index FOR (n:Message) ON (n.creationDate)");
+		//tx.execute("CREATE TEXT INDEX birthday_index FOR (s:Person) ON (s.birthday)");
+		//tx.execute("CREATE TEXT INDEX language_index FOR (n:Message) ON (n.language)");
 	    	long now = System.currentTimeMillis();
 	        Result result = tx.execute( query );
+		System.out.println("Took " + (System.currentTimeMillis()-now) + " ms to execute transaction");
+		
+		boolean process = true;
+		Map<String, Object> row;
+		int numResults = 0;
+		HashMap<String,List<Integer>> nodeids = new HashMap<String,List<Integer>>();
+		if(process){
+		    while (result.hasNext()){
+                        row = result.next();
+                        numResults ++;
+                        //for (Map.Entry<String, Object> column : row.entrySet()){
+                        //    String key = column.getKey();
+                        //    if(column.getKey().contains("("))
+                        //        key =  column.getKey().substring(column.getKey().indexOf("(")+1, column.getKey().indexOf(")"));
+
+                        //    List<Integer> oneSet;
+                        //    if(!nodeids.containsKey(key))
+                        //        oneSet = new ArrayList<>();
+                        //     else
+                        //        oneSet = nodeids.get(key);
+                        //    try {
+                       	//	oneSet.add(Integer.parseInt(column.getValue().toString()));
+                       // 	nodeids.put(key, oneSet);
+                       //     }catch(Exception e) {
+                       //         continue;
+                                //return new HashMap<String,List<Integer>>();
+                       //     }
+			// }
+                     }
+                 }
+
+
 	        long end = System.currentTimeMillis();
-	        System.out.println("Took " + (end-now) + " ms to execute transaction");
+	        System.out.println("Took " + (end-now) + " ms to process the row");
+		System.out.println("There are" + numResults + "elements");
+		try{
+			myWriter.write((end-now) + ",");
+		} catch (IOException e) {
+                System.out.println("An error occurred.");
+                e.printStackTrace();
+            	}
+		//tx.execute("DROP INDEX browserUsed_index");
+		//tx.execute("DROP INDEX gender_index");
+		//tx.execute("DROP INDEX creationDate_index");
+                //tx.execute("DROP INDEX birthday_index");
+		//tx.execute("DROP INDEX language_index");
+		if(query.equals("MATCH (s) where 'V1' IN s.viewname RETURN COUNT(s)"))
+                   tx.execute("DROP INDEX v1Index");
+
     	}
-        
     }
+
     public int createViewOnGraph(String query) {
         Set<String> nodeids = new HashSet<String>();
 
