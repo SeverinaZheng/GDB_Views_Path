@@ -1,26 +1,40 @@
+//clean up: MATCH (n) WHERE n.ViewName IS NOT NULL REMOVE n.ViewName
+//for path views: MATCH (v:View) DETACH DELETE v
+
+MATCH (n:Comment) WHERE n.browserUsed = "Safari" SET n.ViewName =  CASE WHEN n.ViewName IS NOT NULL THEN n.ViewName + "V1_1" ELSE ["V1_1"] END RETURN n
+MATCH (n:Comment) WHERE n.browserUsed = "Internet Explorer"  SET n.ViewName =  CASE WHEN n.ViewName IS NOT NULL THEN n.ViewName + "V1_2" ELSE ["V1_2"] END RETURN n
+
+
+MATCH p=(c:Message)-[r1:REPLY_OF]->(m:Message)<-[r2:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed WITH collect(id(r1) + '-' + id(r2)) AS paths,count(p) AS c MERGE (v:View {Name:'V10'}) SET v.PATHS = paths RETURN c
+
+MATCH (v:View) WHERE v.Name = 'V10' UNWIND v.PATHS AS path WITH SPLIT(path, '-') AS idPair, v WITH TOINTEGER(idPair[0]) AS idR1, TOINTEGER(idPair[1]) AS idR2 MATCH p=()-[r1]-()-[r2]-() WHERE id(r1) = idR1 AND id(r2) = idR2 RETURN count(p)
+
+
 CREATE VIEW AS V1_1 MATCH (n:Comment) WHERE n.browserUsed = "Safari" RETURN n
-CREATE VIEW AS V1_2 MATCH (n:Comment) WHERE NOT n.browserUsed = "Safari" RETURN n
-CREATE VIEW AS V2_1 MATCH (po:Post) WHERE po.language = "ar"  RETURN po
-CREATE VIEW AS V2_2 MATCH (po:Post) WHERE NOT po.language = "ar" RETURN po
-CREATE VIEW AS V3_1 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar"  RETURN po
-CREATE VIEW AS V3_2 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE NOT po.language = "ar" RETURN po
+CREATE VIEW AS V1_2 MATCH (n:Comment) WHERE n.browserUsed = "Internet Explorer" RETURN n
+CREATE VIEW AS V2_1 MATCH (n:Message) WHERE  n.creationDate > 1310000000000 AND n.creationDate < 1313000000000 RETURN n
+CREATE VIEW AS V2_2 MATCH (n:Message) WHERE  n.creationDate > 1310000000000 AND n.creationDate < 1316000000000 RETURN n
+CREATE VIEW AS V3_1 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE f.creationDate<1265000000000 RETURN po
+CREATE VIEW AS V3_2 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" RETURN po
 CREATE VIEW AS V4_1 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" AND f.title STARTS WITH "Wall" RETURN po
-CREATE VIEW AS V4_2 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE NOT po.language = "ar" OR NOT f.title STARTS WITH "Wall" RETURN f
+CREATE VIEW AS V4_2 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.length > 5 AND po.browserUsed = "Opera" RETURN f
 CREATE VIEW AS V5 MATCH (c:Message)-[:REPLY_OF]->(m:Message) WHERE c.browserUsed = m.browserUsed RETURN c
-CREATE VIEW AS V6_1 MATCH (c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" RETURN s
-CREATE VIEW AS V6_2 MATCH (c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE NOT c.browserUsed = m.browserUsed OR NOT s.gender = "male"  RETURN s
-CREATE VIEW AS V7_1 MATCH (c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday > t.birthday+ 1000000000 OR s.birthday < t.birthday-1000000000 OR c.creationDate > b.creationDate+10000000000 RETURN b
+CREATE VIEW AS V6_1 MATCH (c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed RETURN s
+CREATE VIEW AS V6_2 MATCH (c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" RETURN s
 CREATE VIEW AS V7_2 MATCH (c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday < t.birthday+ 1000000000 AND  s.birthday > t.birthday-1000000000 AND c.creationDate < b.creationDate+10000000000 RETURN b
 CREATE VIEW AS V8_1 MATCH p=(f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE f.creationDate<1265000000000 RETURN p
-CREATE VIEW AS V8_2 MATCH p=(f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE f.creationDate>1265000000000 RETURN p
+CREATE VIEW AS V8_2 MATCH p=(f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" RETURN p
 CREATE VIEW AS V9_1 MATCH p=(f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" AND f.title STARTS WITH "Wall" RETURN p
-CREATE VIEW AS V9_2 MATCH p=(f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE NOT po.language = "ar" OR NOT f.title STARTS WITH "Wall"  RETURN p
+CREATE VIEW AS V9_2 MATCH p=(f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.length > 5 AND po.browserUsed = "Opera" RETURN p
 CREATE VIEW AS V10 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message) WHERE c.browserUsed = m.browserUsed RETURN p
-CREATE VIEW AS V11_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" RETURN p
-CREATE VIEW AS V11_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE NOT c.browserUsed = m.browserUsed OR NOT s.gender = "male" RETURN p
+CREATE VIEW AS V11_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed RETURN p
+CREATE VIEW AS V11_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" RETURN p
 CREATE VIEW AS V12_2 MATCH p=(c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday < t.birthday+ 1000000000 AND  s.birthday > t.birthday-1000000000 AND c.creationDate < b.creationDate+10000000000 RETURN p
 CREATE VIEW AS V14_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE  s.gender='male' RETURN p
-CREATE VIEW AS V14_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE NOT s.gender='male' RETURN p
+CREATE VIEW AS V14_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE  m.browserUsed='Safari' OR m.browserUsed='Internet Explorer' RETURN p
+
+
+MATCH (v)-[r:CONTAINING]->(n) where v.ViewName ='V1_1' return n
 WITH VIEWS V14_2 LOCAL MATCH (n) RETURN n
 WITH VIEWS V2_2 LOCAL MATCH (n) RETURN n
 WITH VIEWS V3_1 LOCAL MATCH (n) RETURN n
