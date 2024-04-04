@@ -1,6 +1,6 @@
 //Interactive IC2-- EDGE
 :param [{ personId, maxDate }] => { RETURN
-  22249 AS personId,
+  17335 AS personId,
   1322000000000 AS maxDate
 }
 
@@ -31,7 +31,7 @@ WITH VIEWS V2 LOCAL MATCH p=(p1:Person)-[]-(message:Message) WHERE p IN V2 RETUR
     
 //IC 4   ---NODE
 :param [{ personId, startDate, endDate }] => { RETURN
-  22249 AS personId,
+  17335 AS personId,
   1345000000000 AS startDate,
   1348000000000 AS endDate
 }
@@ -80,7 +80,7 @@ LIMIT 10
     
 //IC 5 ---PATH
 :param [{ personId, minDate }] => { RETURN
-  11220 AS personId,
+   17335 AS personId,
   1322000000000 AS minDate
 }
 
@@ -118,7 +118,7 @@ WITH VIEW V5 LOCAL MATCH p = ()<-[membership]-() WHERE membership.joinDate > 132
 
 //IC 6 ---NODE
 :param [{ personId, tagName }] => { RETURN
-  11231 AS personId,
+  17335 AS personId,
   "Muammar_Gaddafi" AS tagName
 }
 
@@ -168,7 +168,7 @@ ORDER BY
 LIMIT 10
 
 //IC 8   -- PATH
-:param personId: 22133
+:param personId: 17219
 
 MATCH (start:Person)<-[:HAS_CREATOR]-(:Message)<-[:REPLY_OF]-(comment:Comment)-[:HAS_CREATOR]->(person:Person)
 WHERE ID(start) = $personId
@@ -191,7 +191,7 @@ WITH V8 LOCAL MATCH p1=(comment:Comment)<-[]-(person:Person) WHERE p1 IN V8 RETU
 
 //IC 12 ----NODE
 :param [{ personId, tagClassName }] => { RETURN
-  22084 AS personId,
+  17335 AS personId,
   "OfficeHolder" AS tagClassName
 }
 
@@ -236,7 +236,7 @@ LIMIT 20
 
     
 //short IS2 
-:param personId: 22133
+:param personId: 4102
 
 MATCH (p:Person)<-[:HAS_CREATOR]-(message)
 WHERE ID(p) = $personId
@@ -270,7 +270,7 @@ RETURN person
 ORDER BY  message.creationDate DESC,  ID(message) ASC
 
 //IS3     ---PATH
-:param personId: 22084
+:param personId: 9582
 
 MATCH (n:Person {id: $personId })-[r:KNOWS]-(friend)
 WHERE ID(n) = $personId 
@@ -304,14 +304,14 @@ WITH VIEW V4 MATCH (n) WHERE n IN V4 RETURN n
 
 
 //IS5 ---EDGE
-:param messageId: 1067
+:param messageId: 13114
 MATCH (m:Message)-[:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN p
 
 CREATE VIEW V5 MATCH (m:Message)-[r1:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN r1
 WITH VIEW V5 MATCH ()-[r1]-() WHERE r1 IN V4 RETURN n
 
 //IS6---PATH 
-:param messageId: 23424
+:param messageId: 4717
 MATCH (m:Message)-[:REPLY_OF*0..]->(p:Post)<-[:CONTAINER_OF]-(f:Forum)-[:HAS_MODERATOR]->(mod:Person)
 WHERE ID(m) = $messageId
 RETURN
@@ -326,6 +326,7 @@ WHERE ID(m) = $messageId RETURN p1, p2
 WITH VIEW V6 LOCAL MATCH p=* IN V6.p2 RETURN p
 
 //IS7  ---NODE
+id = 165606
 MATCH (m:Message)<-[:REPLY_OF]-(c:Comment)-[:HAS_CREATOR]->(p:Person)
 WHERE ID(m) = $messageId
     OPTIONAL MATCH (m)-[:HAS_CREATOR]->(a:Person)-[r:KNOWS]-(p)
