@@ -1,6 +1,6 @@
 //Interactive IC2-- EDGE
 :param [{ personId, maxDate }] => { RETURN
-  17335 AS personId,(birthday: 601171200000,firstName: Alfred,lastName: Hoffmann,locationIP: 46.29.29.10)
+  15151 AS personId,(birthday: 601171200000,firstName: Alfred,lastName: Hoffmann,locationIP: 46.29.29.10)
   1322000000000 AS maxDate
 }
 
@@ -31,7 +31,7 @@ WITH VIEWS V2 LOCAL MATCH p=(p1:Person)-[]-(message:Message) WHERE p IN V2 RETUR
     
 //IC 4   ---NODE
 :param [{ personId, startDate, endDate }] => { RETURN
-  17335 AS personId,
+  15151 AS personId,
   1345000000000 AS startDate,
   1348000000000 AS endDate
 }
@@ -80,7 +80,7 @@ LIMIT 10
     
 //IC 5 ---PATH
 :param [{ personId, minDate }] => { RETURN
-   17335 AS personId,
+   15151 AS personId,
   1322000000000 AS minDate
 }
 
@@ -118,7 +118,7 @@ WITH VIEW V5 LOCAL MATCH p = ()<-[membership]-() WHERE membership.joinDate > 132
 
 //IC 6 ---NODE
 :param [{ personId, tagName }] => { RETURN
-  17335 AS personId,
+  15151 AS personId,
   "Muammar_Gaddafi" AS tagName
 }
 
@@ -168,7 +168,7 @@ ORDER BY
 LIMIT 10
 
 //IC 8   -- PATH
-:param personId: 17219(birthday: 355968000000,creationDate: 1272343983650,firstName: K.,lastName: Bose,locationIP: 61.17.197.42)
+:param personId: 15035(birthday: 355968000000,creationDate: 1272343983650,firstName: K.,lastName: Bose,locationIP: 61.17.197.42)
 
 MATCH (start:Person)<-[:HAS_CREATOR]-(:Message)<-[:REPLY_OF]-(comment:Comment)-[:HAS_CREATOR]->(person:Person)
 WHERE ID(start) = $personId
@@ -191,7 +191,7 @@ WITH V8 LOCAL MATCH p1=(comment:Comment)<-[]-(person:Person) WHERE p1 IN V8 RETU
 
 //IC 12 ----NODE
 :param [{ personId, tagClassName }] => { RETURN
-  17335 AS personId,
+  15151 AS personId,
   "OfficeHolder" AS tagClassName
 }
 
@@ -270,7 +270,7 @@ RETURN person
 ORDER BY  message.creationDate DESC,  ID(message) ASC
 
 //IS3     ---PATH
-:param personId: 9582(birthday: 623203200000,creationDate: 1326292586465,firstName: Emperor of Brazil,lastName: Dom Pedro II,locationIP: 192.160.111.235)
+:param personId: 6852(birthday: 623203200000,creationDate: 1326292586465,firstName: Emperor of Brazil,lastName: Dom Pedro II,locationIP: 192.160.111.235)
 
 MATCH (n:Person {id: $personId })-[r:KNOWS]-(friend)
 WHERE ID(n) = $personId 
@@ -304,14 +304,14 @@ WITH VIEW V4 MATCH (n) WHERE n IN V4 RETURN n
 
 
 //IS5 ---EDGE
-:param messageId: 13114(content: maybe,creationDate: 1338784107959,locationIP: 119.235.7.103,browserUsed: Firefox)
+:param messageId: 7654(content: maybe,creationDate: 1338784107959,locationIP: 119.235.7.103,browserUsed: Firefox)
 MATCH (m:Message)-[:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN p
 
 CREATE VIEW V5 MATCH (m:Message)-[r1:HAS_CREATOR]->(p:Person) WHERE ID(m) = $messageId RETURN r1
 WITH VIEW V5 MATCH ()-[r1]-() WHERE r1 IN V4 RETURN n
 
 //IS6---PATH 
-:param messageId: 4717(browserUsed: Firefox,creationDate: 1341572517944,imageFile: photo962072674681.jpg,locationIP: 119.235.7.103)
+:param messageId: 5263(browserUsed: Firefox,creationDate: 1341572517944,imageFile: photo962072674681.jpg,locationIP: 119.235.7.103)
 MATCH (m:Message)-[:REPLY_OF*0..]->(p:Post)<-[:CONTAINER_OF]-(f:Forum)-[:HAS_MODERATOR]->(mod:Person)
 WHERE ID(m) = $messageId
 RETURN
@@ -326,7 +326,7 @@ WHERE ID(m) = $messageId RETURN p1, p2
 WITH VIEW V6 LOCAL MATCH p=* IN V6.p2 RETURN p
 
 //IS7  ---NODE
-id = 165606(content: About Ivan Ljubičić,  player or put him out ofAbout Magical Mystery Tour, ted as the official versiAbout Peru, eight of h,creationDate: 1332349892799,locationIP: 186.0.155.248)
+id = 139398(content: About Ivan Ljubičić,  player or put him out ofAbout Magical Mystery Tour, ted as the official versiAbout Peru, eight of h,creationDate: 1332349892799,locationIP: 186.0.155.248)
 MATCH (m:Message)<-[:REPLY_OF]-(c:Comment)-[:HAS_CREATOR]->(p:Person)
 WHERE ID(m) = $messageId
     OPTIONAL MATCH (m)-[:HAS_CREATOR]->(a:Person)-[r:KNOWS]-(p)
