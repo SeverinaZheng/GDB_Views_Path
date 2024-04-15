@@ -7,9 +7,9 @@ MATCH (n:Message) WHERE  n.creationDate > 1310000000000 AND n.creationDate < 131
 MATCH (n:Message) WHERE  n.creationDate > 1310000000000 AND n.creationDate < 1316000000000 WITH DISTINCT(n) SET n.V2_2="n" RETURN n
 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE f.creationDate<1265000000000 WITH DISTINCT(po) SET po.V3_1="po" RETURN po
 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" WITH DISTINCT(po) SET po.V3_2="po" RETURN po
-MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" AND f.title STARTS WITH "Wall" WITH DISTINCT(po)  SET po.V4_1="po" END RETURN po
+MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.language = "ar" AND f.title STARTS WITH "Wall" WITH DISTINCT(po)  SET po.V4_1="po" RETURN po
 MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post) WHERE po.length > 5 AND po.browserUsed = "Opera" WITH DISTINCT(f) SET f.V4_2="f" RETURN f
-MATCH (c:Message)-[:REPLY_OF]->(m:Message) WHERE c.browserUsed = m.browserUsed WITH DISTINCT(c) SET c.V5="c" END RETURN c
+MATCH (c:Message)-[:REPLY_OF]->(m:Message) WHERE c.browserUsed = m.browserUsed WITH DISTINCT(c) SET c.V5="c" RETURN c
 MATCH (c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed WITH DISTINCT(s)  SET s.V6_1="s" RETURN s
 MATCH (c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" WITH DISTINCT(s) SET s.V6_2="s" RETURN s
 MATCH (c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday < t.birthday+ 1000000000 AND  s.birthday > t.birthday-1000000000 AND c.creationDate < b.creationDate+10000000000 WITH DISTINCT(b) SET b.V7_2="b" RETURN b
@@ -24,11 +24,11 @@ MATCH p=(c:Message)-[r1:HAS_CREATOR]->(s:Person)-[r2:KNOWS]-(t:Person)<-[r3:HAS_
 MATCH p=(c:Message)-[r1:REPLY_OF]->(m:Message)<-[r2:LIKES]-(s:Person)<-[r3:HAS_CREATOR]-(c) WHERE  s.gender='male' WITH collect(id(r1) + '-' + id(r2)+ '-' + id(r3)) AS paths,p,c,m,s MERGE (v:View {ViewName:'V14_1'}) SET v.PATHS = paths SET c.V14_1="c" SET m.V14_1="m" SET s.V14_1="s"   RETURN count(distinct(p))
 MATCH p=(c:Message)-[r1:REPLY_OF]->(m:Message)<-[r2:LIKES]-(s:Person)<-[r3:HAS_CREATOR]-(c) WHERE  m.browserUsed='Safari' OR m.browserUsed='Internet Explorer' WITH collect(id(r1) + '-' + id(r2)+ '-' + id(r3)) AS paths,p,c,m,s MERGE (v:View {ViewName:'V14_2'}) SET v.PATHS = paths SET c.V14_2="c" SET m.V14_2="m" SET s.V14_2="s"  RETURN count(distinct(p))
 //usage
-MATCH (n:Message)<-[:LIKES]-(p:Person) WHERE n.V2_2 IS NOT NULL RETURN DISTINCT p
-MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post)-[:HAS_CREATOR]->(s:Person) WHERE po.V3_2 IS NOT NULL AND s.V6_2 IS NOT NULL RETURN DISTINCT f
-MATCH (f:Forum)-[:HAS_MODERATOR]->(s:Person) WHERE f.V9_1 IS NOT NULL RETURN DISTINCT s
-MATCH (n:Message)-[:HAS_CREATOR]->(s:Person)<-[:HAS_MODERATOR]-(f:Forum)-[:CONTAINER_OF]->(m:Message) WHERE n.V5 IS NOT NULL AND m.V7_2 IS NOT NULL RETURN DISTINCT s
-MATCH (s:Person)<-[:HAS_CREATOR]-(m:Message) WHERE m.V11_2 IS NOT NULL RETURN DISTINCT s
+MATCH (n:Message)<-[:LIKES]-(p:Person) WHERE n.V2_2="n" RETURN DISTINCT p
+MATCH (f:Forum)-[:CONTAINER_OF]->(po:Post)-[:HAS_CREATOR]->(s:Person) WHERE po.V3_2="po" AND s.V6_2="s" RETURN DISTINCT f
+MATCH (f:Forum)-[:HAS_MODERATOR]->(s:Person) WHERE f.V9_1="f" RETURN DISTINCT s
+MATCH (n:Message)-[:HAS_CREATOR]->(s:Person)<-[:HAS_MODERATOR]-(f:Forum)-[:CONTAINER_OF]->(m:Message) WHERE n.V5="c" AND m.V7_2="b" RETURN DISTINCT s
+MATCH (s:Person)<-[:HAS_CREATOR]-(m:Message) WHERE m.V11_2="m" OR m.V11_2="c" RETURN DISTINCT s
 
 
 CREATE TEXT INDEX v1 FOR (n:Message) on n.V2_2
