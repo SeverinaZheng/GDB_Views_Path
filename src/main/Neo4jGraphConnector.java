@@ -153,7 +153,7 @@ public class Neo4jGraphConnector {
         }
 
         System.out.println("Return set contains " + retset.size());
-        for (Map.Entry<String,Set<Relationship>> entry : retset.entrySet()) {
+        for (Map.Entry<String,List<List<Integer>>> entry : pathRelationshipsSet.entrySet()) {
         	System.out.println("name:"+entry.getKey());
         	System.out.println("size:"+entry.getValue().size());
         }
@@ -399,8 +399,6 @@ public class Neo4jGraphConnector {
 
     public static Result executeWithParam(String query, Map<String, Object> params,Transaction tx) {
     	Result  result = tx.execute(query, params);
-
-        
     	return result;
     }
     
@@ -431,15 +429,50 @@ public class Neo4jGraphConnector {
 
         return result;
     }
-    public void executeDirectly(String query) {
-    	try( Transaction tx = db.beginTx()) {
+
+
+	public void executeDirectly(String query, FileWriter myWriter) {
+    	   try( Transaction tx = db.beginTx()) {
+		//tx.execute("CREATE TEXT INDEX browserUsed_index FOR (n:Message) ON (n.browserUsed)");
+		//tx.execute("CREATE TEXT INDEX gender_index FOR (s:Person) ON (s.gender)");
+		//tx.execute("CREATE TEXT INDEX creationDate_index FOR (n:Message) ON (n.creationDate)");
+		//tx.execute("CREATE TEXT INDEX birthday_index FOR (s:Person) ON (s.birthday)");
+		//tx.execute("CREATE TEXT INDEX language_index FOR (n:Message) ON (n.language)");
 	    	long now = System.currentTimeMillis();
 	        Result result = tx.execute( query );
+		System.out.println("Took " + (System.currentTimeMillis()-now) + " ms to execute transaction");
+		
+		boolean process = true;
+		Map<String, Object> row;
+		int numResults = 0;
+		HashMap<String,List<Integer>> nodeids = new HashMap<String,List<Integer>>();
+		if(process){
+		    while (result.hasNext()){
+                        row = result.next();
+                        numResults ++;
+                     }
+                 }
+
+		tx.commit();
+
 	        long end = System.currentTimeMillis();
-	        System.out.println("Took " + (end-now) + " ms to execute transaction");
+	        System.out.println("Took " + (end-now) + " ms to process the row");
+		System.out.println("There are" + numResults + "elements");
+		try{
+			myWriter.write((end-now) + ",");
+		} catch (IOException e) {
+                System.out.println("An error occurred.");
+                e.printStackTrace();
+            	}
+		//tx.execute("DROP INDEX browserUsed_index");
+		//tx.execute("DROP INDEX gender_index");
+		//tx.execute("DROP INDEX creationDate_index");
+                //tx.execute("DROP INDEX birthday_index");
+		//tx.execute("DROP INDEX language_index");
+
     	}
-        
     }
+
     public int createViewOnGraph(String query) {
         Set<String> nodeids = new HashSet<String>();
 
