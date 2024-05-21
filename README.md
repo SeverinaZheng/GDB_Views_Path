@@ -1,7 +1,5 @@
 # GDBViews
 
-
-
 Code for views in graph database system (Neo4j) as part of my Master's thesis, along with some instructions and notes.
   
 main.Main:
