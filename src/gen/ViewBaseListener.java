@@ -255,6 +255,18 @@ public class ViewBaseListener implements ViewListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterConstructstmt(ViewParser.ConstructstmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitConstructstmt(ViewParser.ConstructstmtContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterOrderstmt(ViewParser.OrderstmtContext ctx) { }
 	/**
 	 * {@inheritDoc}

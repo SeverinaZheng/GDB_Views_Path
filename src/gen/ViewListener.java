@@ -208,6 +208,16 @@ public interface ViewListener extends ParseTreeListener {
 	 */
 	void exitRetval(ViewParser.RetvalContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link ViewParser#constructstmt}.
+	 * @param ctx the parse tree
+	 */
+	void enterConstructstmt(ViewParser.ConstructstmtContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link ViewParser#constructstmt}.
+	 * @param ctx the parse tree
+	 */
+	void exitConstructstmt(ViewParser.ConstructstmtContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link ViewParser#orderstmt}.
 	 * @param ctx the parse tree
 	 */

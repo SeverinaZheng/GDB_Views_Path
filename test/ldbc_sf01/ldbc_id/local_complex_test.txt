@@ -21,12 +21,12 @@ CREATE VIEW AS V11_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:P
 CREATE VIEW AS V12_2 MATCH p=(c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday < t.birthday+ 1000000000 AND  s.birthday > t.birthday-1000000000 AND c.creationDate < b.creationDate+10000000000 RETURN p
 CREATE VIEW AS V14_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE  s.gender='male' RETURN p
 CREATE VIEW AS V14_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE NOT s.gender='male' RETURN p
-CREATE VIEW AS V20 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message) WHERE c.browserUsed = m.browserUsed RETURN GRAPH
-CREATE VIEW AS V21_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" RETURN GRAPH
-CREATE VIEW AS V21_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE NOT c.browserUsed = m.browserUsed OR NOT s.gender = "male" RETURN GRAPH
-CREATE VIEW AS V22_2 MATCH p=(c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday < t.birthday+ 1000000000 AND  s.birthday > t.birthday-1000000000 AND c.creationDate < b.creationDate+10000000000 RETURN GRAPH
-CREATE VIEW AS V24_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE  s.gender='male' RETURN GRAPH
-CREATE VIEW AS V24_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE NOT s.gender='male' RETURN GRAPH
+CREATE VIEW AS V20 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message) WHERE c.browserUsed = m.browserUsed CONSTRUCT p RETURN GRAPH
+CREATE VIEW AS V21_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE c.browserUsed = m.browserUsed AND s.gender = "male" CONSTRUCT p RETURN GRAPH
+CREATE VIEW AS V21_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person) WHERE NOT c.browserUsed = m.browserUsed OR NOT s.gender = "male" CONSTRUCT p RETURN GRAPH
+CREATE VIEW AS V22_2 MATCH p=(c:Message)-[:HAS_CREATOR]->(s:Person)-[:KNOWS]-(t:Person)<-[:HAS_CREATOR]-(b:Message) WHERE s.birthday < t.birthday+ 1000000000 AND  s.birthday > t.birthday-1000000000 AND c.creationDate < b.creationDate+10000000000 CONSTRUCT p RETURN GRAPH
+CREATE VIEW AS V24_1 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE  s.gender='male' CONSTRUCT p RETURN GRAPH
+CREATE VIEW AS V24_2 MATCH p=(c:Message)-[:REPLY_OF]->(m:Message)<-[:LIKES]-(s:Person)<-[:HAS_CREATOR]-(c) WHERE NOT s.gender='male' CONSTRUCT p RETURN GRAPH
 
 WITH VIEWS V4_1 V3_1 LOCAL MATCH (n) WHERE n IN V4_1 AND n IN V3_1 RETURN n
 WITH VIEWS V2_1 V4_1 LOCAL MATCH (n) WHERE n IN V2_1 AND n IN V4_1 RETURN n
@@ -60,3 +60,4 @@ WITH VIEWS V21_2 LOCAL MATCH (n1)-[r1:REPLY_OF]->(m)<-[r2:REPLY_OF]-(n2) RETURN 
 WITH VIEWS V22_2 LOCAL MATCH (n1)-[r1:REPLY_OF]->(m)<-[r2:REPLY_OF]-(n2) RETURN m
 WITH VIEWS V24_1 LOCAL MATCH (n1)-[r1:REPLY_OF]->(m)<-[r2:REPLY_OF]-(n2) RETURN m
 WITH VIEWS V24_2 LOCAL MATCH (n1)-[r1:REPLY_OF]->(m)<-[r2:REPLY_OF]-(n2) RETURN m
+WITH VIEWS V22_2 LOCAL MATCH (n:Message)-[r1:HAS_CREATOR]-(s:Person)-[r2:KNOWS]-(t:Person)-[r3:KNOWS]-(k:Person)-[r4:HAS_CREATOR]-(b:Message) RETURN s

@@ -7,8 +7,8 @@ root : COMMAND NAME viewuse scope query |
         ;
 scope: 'LOCAL' | 'GLOBAL' |;
 
-query :  KEYWORD expr conditions? pipeline? returnstmt orderstmt? limitstmt?|
-         KEYWORD pathExp conditions? pipeline? returnstmt orderstmt? limitstmt?
+query :  KEYWORD expr conditions? pipeline? constructstmt? returnstmt orderstmt? limitstmt?|
+         KEYWORD pathExp conditions? pipeline? constructstmt? returnstmt orderstmt? limitstmt?
         ;
 
 changegraph : KEYWORD expr conditions 'SET' setattr
@@ -84,9 +84,10 @@ viewatom : variable | // for early version, this line was '(' NAME ':' MNAME ')'
              ;
 returnstmt : RETURN retval (',' retval)*;
 retval : 'NODES(' NAME ')' |
-         attribute | function (as NAME)?
+         attribute | function (as NAME)? | 'GRAPH'
          ;
-         
+
+constructstmt : 'CONSTRUCT' NAME;
 orderstmt: 'ORDER BY' ;
 orderItem: attribute order (','orderItem)* | function order (','orderItem)* ;
 order: 'DESC' | 'ASC';

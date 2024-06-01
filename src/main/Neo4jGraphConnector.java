@@ -233,6 +233,7 @@ public class Neo4jGraphConnector {
         // Case when the result set is NODE objects
         if(query.contains("RETURN DISTINCT ID(")){
             try( Transaction tx = db.beginTx()) {
+		//System.out.println("aaa");
                 long startTime = System.currentTimeMillis();
                 Result result = tx.execute( query );
                 long endTime = System.currentTimeMillis();
@@ -366,6 +367,7 @@ public class Neo4jGraphConnector {
                 }
                 //get rid of duplicates
                 for(Map.Entry<String,List<Integer>> entry: nodeids.entrySet()) {
+			System.out.println("size of "+ entry.getKey() + ":"+entry.getValue().size());
                 	nodeids.put(entry.getKey(), new ArrayList<>(
                 		      new HashSet<>(entry.getValue())));
                 } 
@@ -433,11 +435,6 @@ public class Neo4jGraphConnector {
 
 	public void executeDirectly(String query, FileWriter myWriter) {
     	   try( Transaction tx = db.beginTx()) {
-		//tx.execute("CREATE TEXT INDEX browserUsed_index FOR (n:Message) ON (n.browserUsed)");
-		//tx.execute("CREATE TEXT INDEX gender_index FOR (s:Person) ON (s.gender)");
-		//tx.execute("CREATE TEXT INDEX creationDate_index FOR (n:Message) ON (n.creationDate)");
-		//tx.execute("CREATE TEXT INDEX birthday_index FOR (s:Person) ON (s.birthday)");
-		//tx.execute("CREATE TEXT INDEX language_index FOR (n:Message) ON (n.language)");
 	    	long now = System.currentTimeMillis();
 	        Result result = tx.execute( query );
 		System.out.println("Took " + (System.currentTimeMillis()-now) + " ms to execute transaction");
@@ -464,11 +461,6 @@ public class Neo4jGraphConnector {
                 System.out.println("An error occurred.");
                 e.printStackTrace();
             	}
-		//tx.execute("DROP INDEX browserUsed_index");
-		//tx.execute("DROP INDEX gender_index");
-		//tx.execute("DROP INDEX creationDate_index");
-                //tx.execute("DROP INDEX birthday_index");
-		//tx.execute("DROP INDEX language_index");
 
     	}
     }
@@ -854,6 +846,11 @@ public class Neo4jGraphConnector {
 	                nodeids.put(pathName,nodeidPath);
 	            }
         	}
+        }
+
+        for(Map.Entry<String,List<Integer>> entry: nodeids.entrySet()) {
+            nodeids.put(entry.getKey(), new ArrayList<>(
+                    new HashSet<>(entry.getValue())));
         }
 
         // update nodeSet to hold the current nodeids

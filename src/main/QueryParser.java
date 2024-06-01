@@ -140,7 +140,8 @@ public class QueryParser extends ViewBaseListener {
         PATH,
         EDGE,
         PATHNODES,
-        NODE
+        NODE,
+        GRAPH
     }
 
     enum changeType{
@@ -551,8 +552,9 @@ public class QueryParser extends ViewBaseListener {
 
         if(ctx.getText().contains("NODES(")){
             returnType = retType.PATHNODES;
-        }
-        else if (!ctx.attribute().isEmpty()){
+        } else if(ctx.getText().contains("GRAPH")){
+            returnType = retType.GRAPH;
+        } else if (!ctx.attribute().isEmpty()){
 
             if(varLabels.containsKey(ctx.attribute().getText())) {
                 if (!returnValExpr.equals("")) returnValExpr += ",";

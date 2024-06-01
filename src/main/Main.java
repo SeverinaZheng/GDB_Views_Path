@@ -47,7 +47,7 @@ public class Main {
         try {
 
             // size could be set to any of the ["small", "medium", "large"]
-            String dbName = "ldbc_sf01";
+            String dbName = "small";
 
             // Getting the Connector object to Neo4j
             connector = new Neo4jGraphConnector(dbName);
@@ -60,7 +60,7 @@ public class Main {
 
             // Running commands of a file without clearing the cache
 	    try{
-                myWriter = new FileWriter("/home/db/yzheng57/GDB_Views_Path/test/ldbc/time.txt");
+                myWriter = new FileWriter("/home/yunjia/Desktop/GDB_Views_Path/test/time.txt");
             } catch (IOException e) {
                 System.out.println("An error occurred.");
                 e.printStackTrace();
@@ -980,14 +980,13 @@ public class Main {
                 break;
             }
             case PATH: {
-//                fullQuery = mainQuery + "FOREACH(pathnode in nodes(" + returnSymbol + ") | SET(CASE WHEN NOT EXISTS(pathnode.views) THEN pathnode END).views = []" +
-//                        " SET pathnode.views = (CASE WHEN \"" +viewname+ "\" IN pathnode.views THEN [] ELSE [\"" + viewname + "\"] END) + pathnode.views)"
-//                        + "\nFOREACH(pathnode in relationships(" + returnSymbol + ") | SET(CASE WHEN NOT EXISTS(pathnode.views) THEN pathnode END).views = []" +
-//                        " SET pathnode.views = (CASE WHEN \"" +viewname+ "\" IN pathnode.views THEN [] ELSE [\"" + viewname + "\"] END) + pathnode.views)";
-//
-
                 makeMiddlewareView = mainQuery + "RETURN " + returns;
+		break;
 
+            }
+            case GRAPH:{
+                String betweenConstructAndReturn = mainQuery.split("CONSTRUCT")[1];
+                makeMiddlewareView = mainQuery.split("CONSTRUCT")[0] + "RETURN " +  betweenConstructAndReturn;
             }
             case DEFAULT: {
                 break;
@@ -1074,11 +1073,54 @@ public class Main {
             System.out.println("Process time: " + (processEnd-executeEnd));
         }
 
-        // Uncomment for testing purposes
-        /* System.out.println("Path Table is + " + pathTable.toString());
-        System.out.println("Node Table is + " + nodeTable.toString());
-        System.out.println("Edge Table is + " + edgeTable.toString());
-        System.out.println("PathNode Table is + " + pathnodeTable.toString()); */
+
+        if(vql.getReturnType() == QueryParser.retType.GRAPH ){
+            // Getting relationships of the path query
+            long start = System.currentTimeMillis();
+            Object[] processedPath = connector.pathQuery(makeMiddlewareView);
+            long executeEnd = System.currentTimeMillis();
+
+            // Mohanna: The following function call is changed by Mohanna to reduce duplicate work in pathQuery() and getPathQueryRelationships()
+            HashMap<String,Set<Relationship>> allRelationshipSet = ( HashMap<String,Set<Relationship>>) processedPath[0];
+            HashMap<String,List<List<Integer>>> allrlist = (HashMap<String,List<List<Integer>>>)processedPath[1];
+
+            pathRelTable.put(viewname, allrlist);
+
+            pathTable.put(viewname, allRelationshipSet);
+
+            HashMap<String,List<Integer>> edgeids = new HashMap<String,List<Integer>>();
+
+            // TODO: Should we be worried about the deprecated version
+            for(Map.Entry<String,Set<Relationship>> entry : allRelationshipSet.entrySet()){
+                String pathName = entry.getKey();
+                Set<Relationship> relationshipSet = entry.getValue();
+                for(Relationship r : relationshipSet){
+                    List<Integer> ids;
+                    if(edgeids.containsKey(pathName))
+                        ids = edgeids.get(pathName);
+                    else
+                        ids = new ArrayList<>();
+                    ids.add((int)r.getId());
+                    edgeids.put(pathName, ids);
+                }
+            }
+            // Storing edges
+            edgeTable.put(viewname, edgeids);
+
+            HashMap<String,List<Integer>> nodeids = connector.getNodeSet();
+            int num = 0;
+            for(Map.Entry<String,List<Integer>> entry :nodeids.entrySet()){
+                num += entry.getValue().size();
+            }
+
+            System.out.println("There are " + num + " nodes");
+
+            // Storing nodes
+            nodeTable.put(viewname, nodeids);
+            long processEnd = System.currentTimeMillis();
+            System.out.println("Execution time: " + (executeEnd-start));
+            System.out.println("Process time: " + (processEnd-executeEnd));
+        }
 
     }
     
@@ -1486,9 +1528,34 @@ public class Main {
                     }
                 }      	
             }else if(vql.addWhereClause.keySet().isEmpty()) {
-            	if(!fullQuery.contains("p=")){
+                String viewName = usedViews.get(0);
+                if(Objects.equals(viewReturnVarTable.get(viewName), "GRAPH")){
+                    List<Integer> allNodeIds = new ArrayList<>();
+                    List<Integer> allEdgeIds = new ArrayList<>();
+                    HashMap<String,List<Integer>> allIdsTemp = null;
+                    allIdsTemp = nodeTable.get(viewName.split("\\.")[0]);
+                    for(Entry<String,List<Integer>> entry: allIdsTemp.entrySet()) {
+                        allNodeIds.addAll(entry.getValue());
+                    }
+                    allIdsTemp = edgeTable.get(viewName.split("\\.")[0]);
+                    for(Entry<String,List<Integer>> entry: allIdsTemp.entrySet()) {
+                        allEdgeIds.addAll(entry.getValue());
+                    }
+
+
+                    idMap.put(viewName.split("\\.")[0] + "Node", allNodeIds);
+                    idMap.put(viewName.split("\\.")[0] + "Edge", allEdgeIds);
+                    String whereCondition = "";
+                    for(String identifier: nodeidentifiers){
+                        whereCondition +=  "ID(" + identifier + ") IN $" + viewName.split("\\.")[0]+"Node AND ";
+                    }
+                    for(String identifier: edgeidentifiers){
+                        whereCondition +=  "ID(" + identifier + ") IN $" + viewName.split("\\.")[0]+"Edge AND ";
+                    }
+                    fullQuery = fullQuery.split("RETURN")[0] + "WHERE "+ whereCondition.substring(0,whereCondition.length()-5) +" RETURN" + fullQuery.split("RETURN")[1];
+
+                }else if(!fullQuery.contains("p=")){
 	                String nodeName = nodeidentifiers.get(0);
-	                String viewName = usedViews.get(0);
 	                List<Integer> ids = new ArrayList<>();
 	               	HashMap<String,List<Integer>> allIds = null;
 	               	if(vql.nodeSymbols().contains(nodeName)){
@@ -1580,7 +1647,10 @@ public class Main {
 	          		List<Integer> sampleRlist = rlist.get(0);
 	               	edgeNum = sampleRlist.size();
 	               	for(int i = 1; i <= edgeNum; i++) {
-	               	 appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
+                        if(edgeNum == 1)
+                            appendedToQuery = appendedToQuery  + "()-[r" + i + "]->";
+                        else
+                            appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
 	               	}
 	               	appendedToQuery = appendedToQuery  + "() WHERE ";
 	               	for(int i = 1; i <= edgeNum; i++) {
@@ -1603,7 +1673,10 @@ public class Main {
 		               	edgeNum = sampleRlist.size();
 		               	if(newQuery.equals("")) {
 		               		for(int i = 1; i <= edgeNum; i++) {
-		               			appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
+                                   if(edgeNum == 1)
+                                       appendedToQuery = appendedToQuery  + "()-[r" + i + "]->";
+                                   else
+                                       appendedToQuery = appendedToQuery  + "()-[r" + i + "]-";
 				            }
 				            appendedToQuery = appendedToQuery  + "() WHERE ";
 				            for(int i = 1; i <= edgeNum; i++) {
