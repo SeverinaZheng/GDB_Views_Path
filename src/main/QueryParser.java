@@ -899,7 +899,8 @@ public class QueryParser extends ViewBaseListener {
             ParseTree child2 = ctx.getChild(2);
 
             Object payload1 = child1.getPayload();
-            Object payload2 = child2.getPayload();
+	    Object payload2 = null;
+            if(child2 != null) payload2 = child2.getPayload();
             //A note about these payloads... it is actually valid for us to have something like,
             //"WHERE a.name = b.name"
             //In this case (not yet covered in writing), we should have some default condition on name such that it is triggered whenever a change on name

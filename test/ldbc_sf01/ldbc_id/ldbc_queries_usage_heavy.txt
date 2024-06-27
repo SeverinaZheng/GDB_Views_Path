@@ -1,8 +1,9 @@
 //Interactive IC2
-:param [{ personId, maxDate }] => { RETURN
+:param-- sf01 [{ personId, maxDate }] => { RETURN
   15151 AS personId,(birthday: 601171200000,firstName: Alfred,lastName: Hoffmann,locationIP: 46.29.29.10)
   1322000000000 AS maxDate
 }
+
 
 MATCH (p:Person)-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(message:Message)
     WHERE ID(p) = $personId AND message.creationDate <= $maxDate
@@ -19,7 +20,7 @@ MATCH (p:Person)-[:KNOWS]-(friend:Person)<-[:HAS_CREATOR]-(message:Message)
     LIMIT 20
     
 CREATE VIEW V2   
-MATCH p1=(p:Person)-[r1:KNOWS]-(friend:Person) RETURN DISTINCT friend
+MATCH p1=(p:Person)-[r1:KNOWS]-(friend:Person) WHERE ID(p) =15151 RETURN friend
    
 WITH VIEWS V2 GLOBAL MATCH (friend)<-[r2:HAS_CREATOR]-(message:Message) WHERE message.creationDate <= $maxDate 
 RETURN

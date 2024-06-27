@@ -1,3 +1,8 @@
+MATCH p1=(n:User)-[r:POSTED]-(po:Post),p2=(po)-[:HAS_TAG]-(t:Tag)-[:HAS_TAG]-(po2:Post)-[:POSTED]-(n) WHERE t.tagId = 'html' OR t.tagId = 'php' WITH COLLECT(DISTINCT(p1)) as allP1,n,r,po UNWIND RANGE(0,SIZE(allP1)-1) as pos WITH pos,nodes(allP1[pos])[0] as start,n,po,r,relationships(allP1[pos]) AS relList  SET n.V8_1 = 'n' SET po.V8_1='po' SET r.V8_1='r' SET start.V8_1_p = CASE WHEN start.V8_1_p IS NOT NULL THEN start.V8_1_p +pos ELSE pos END WITH relList,pos UNWIND relList as rel SET rel.V8_1_p = CASE WHEN rel.V8_1_p IS NOT NULL THEN rel.V8_1_p +pos ELSE pos END RETURN pos
+
+
+
+
 CREATE VIEW AS V3_3 MATCH p=(n:User)-[:POSTED]-(po:Post) WHERE n.reputation < 850 RETURN n,po
 CREATE VIEW AS V3_4 MATCH p=(n:User)-[:POSTED]-(po:Post) WHERE po.score > 38 RETURN n,po
 CREATE VIEW AS V4_3 MATCH p=(n:Post)-[:PARENT_OF]-(m:Post) WHERE m.score > 200 AND n.score > 200 RETURN n,m

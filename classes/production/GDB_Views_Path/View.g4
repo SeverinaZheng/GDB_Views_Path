@@ -20,14 +20,14 @@ changegraph : KEYWORD expr conditions 'SET' setattr
 
 pipeline    : 'WITH' replacements pipeconditions | 'WITH' replacements pipeconditions pipeline|
 			  'WITH' replacements (pipeline)* | KEYWORD expr conditions? pipeline? 
-			  |KEYWORD pathExp conditions? pipeline?
+			  | KEYWORD pathExp conditions? pipeline? | 'WITH' replacements 
 ;
 
-replacements : NAME as NAME (',' replacements) |attribute as attribute  (',' replacements) |
-               function as NAME (',' replacements) |
-               NAME (',' replacements)* |NAME as NAME | function as NAME | NAME |
+replacements : NAME as NAME (',' replacements)* |attribute as attribute  (',' replacements)* | attribute as NAME  (',' replacements)*|
+               function as NAME (',' replacements)* |
+               ('DISTINCT')? NAME (',' replacements)* |NAME as NAME | function as NAME | NAME | 'DISTINCT' NAME
                iteration as NAME (',' replacements) | iteration as NAME |
-               caseCondition as NAME (',' replacements)*
+               caseCondition as NAME (',' replacements)* |replacements orderstmt limitstmt
 ;
 
 caseCondition: 'CASE WHEN' boolexpr 'THEN' val 'ELSE' val 'END';
@@ -42,7 +42,7 @@ iterationCase : 'CASE WHEN' pipeexpr 'THEN' validVal 'ELSE' validVal 'END';
 size: 'SIZE' | 'size';
 
 range: 'RANGE' | 'range';
-pipeconditions  : 'WHERE' pipeexpr | KEYWORD expr conditions | KEYWORD path conditions
+pipeconditions  : 'WHERE' pipeexpr | KEYWORD expr conditions | KEYWORD path conditions | pipeline
 ;
 
 pipeexpr    : attribute COMPARISON attribute |
@@ -58,7 +58,7 @@ pipeexpr    : attribute COMPARISON attribute |
 ;
 
 function : 'COLLECT(' function ')' | 'UNWIND' function | 'COUNT(' function ')' | 'COUNT(*)' | 'MAX('function')' 
-			| 'toInteger('function')' | 'ID('function')' | 'SUM('function')' | NAME;
+			| 'toInteger('function')' | 'ID('function')' | 'SUM('function')' | NAME|'DISTINCT(' function ')' |;
 
 viewuse  : 'WITH VIEWS' usedviews | ;
 usedviews : NAME*;
@@ -87,8 +87,8 @@ retval : 'NODES(' NAME ')' |
          attribute | function (as NAME)? | 'GRAPH'
          ;
 
-constructstmt : 'CONSTRUCT' NAME;
-orderstmt: 'ORDER BY' ;
+constructstmt : 'CONSTRUCT' NAME (',' NAME)*;
+orderstmt: 'ORDER BY' orderItem ;
 orderItem: attribute order (','orderItem)* | function order (','orderItem)* ;
 order: 'DESC' | 'ASC';
 
@@ -105,7 +105,7 @@ relation : relationValue?(':'type)?('|'type)*(relationLength)?;
 relationValue : NAME ;
 relationLength: '*' | '*'VALUE | '*'VALUE'..'VALUE | '*..'VALUE | '*'VALUE'..' ;
 pathExp    :  path (',' path)*;
-path  :   NAME '=' expr ;
+path  :   NAME '=' expr | expr;
 conditions  : 'WHERE' boolexpr | ;
 boolexpr    :
               attribute COMPARISON attribute |
@@ -124,6 +124,9 @@ boolexpr    :
               exists '(' attribute ')'|
               function '=' attribute |
               function '=' val |
+              function '=' function |
+              viewatom|
+              val '=' val |
               attribute 'STARTS WITH' VALUE;
 attribute   : NAME('.'NAME)?  | val arithmetic attribute | attribute arithmetic val | indexing;
 val         : VALUE | NAME | CONSTANTS;
@@ -156,7 +159,7 @@ exists : 'EXISTS' | 'exists';
 Lexer rules
 */
 
-KEYWORD   : 'MATCH' | 'MERGE' |'OPTIONAL MATCH';
+KEYWORD   : 'MATCH' | 'MERGE' |'OPTIONAL MATCH' |'MERGE';
 RETURN  : 'RETURN' ;
 COMMAND : 'CREATE VIEW AS';
 COMPARISON : '>' | '<' | '>=' |'<=' |'=';

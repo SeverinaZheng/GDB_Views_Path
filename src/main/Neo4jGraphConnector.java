@@ -108,6 +108,7 @@ public class Neo4jGraphConnector {
                 for (Map.Entry<String, Object> column : row.entrySet()) {
                 	String pathName = column.getKey();
                     Path path = (Path)column.getValue();
+		    if (path == null) continue;
                     List<List<Integer>> allEdges;
                     Iterable<Relationship> iterable = path.relationships();
                     if(pathRelationshipsSet.containsKey(pathName))
@@ -435,6 +436,7 @@ public class Neo4jGraphConnector {
 
 	public void executeDirectly(String query, FileWriter myWriter) {
     	   try( Transaction tx = db.beginTx()) {
+		//tx.execute("CREATE TEXT INDEX v1 FOR (n:User) on n.V1_1");
 	    	long now = System.currentTimeMillis();
 	        Result result = tx.execute( query );
 		System.out.println("Took " + (System.currentTimeMillis()-now) + " ms to execute transaction");
@@ -450,6 +452,7 @@ public class Neo4jGraphConnector {
                      }
                  }
 
+		//tx.execute("DROP INDEX v1");
 		tx.commit();
 
 	        long end = System.currentTimeMillis();
@@ -848,7 +851,7 @@ public class Neo4jGraphConnector {
         	}
         }
 
-        for(Map.Entry<String,List<Integer>> entry: nodeids.entrySet()) {
+	for(Map.Entry<String,List<Integer>> entry: nodeids.entrySet()) {
             nodeids.put(entry.getKey(), new ArrayList<>(
                     new HashSet<>(entry.getValue())));
         }
